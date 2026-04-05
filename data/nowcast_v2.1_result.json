@@ -1,0 +1,130 @@
+{
+  "version": "v2.1_expanded",
+  "key_change": "Revenue extended to 2017 via INE 0009813 (NUTS-2013), RevPAR now covers 32 quarters",
+  "models": {
+    "C_compact_32q": {
+      "r2": 0.8777,
+      "r2_adj": 0.8533,
+      "rmse": 202.0,
+      "n": 31,
+      "k": 5,
+      "dw": 1.178,
+      "features": [
+        "nights",
+        "revpar",
+        "al_share",
+        "building_permits"
+      ]
+    },
+    "C2_lodging_32q": {
+      "r2": 0.8438,
+      "r2_adj": 0.8126,
+      "rmse": 228.3,
+      "n": 31,
+      "k": 5,
+      "dw": 1.058,
+      "features": [
+        "nights",
+        "lodging_revpar",
+        "al_share",
+        "building_permits"
+      ]
+    },
+    "B_tourism_32q": {
+      "r2": 0.8724,
+      "r2_adj": 0.8535,
+      "rmse": 206.9,
+      "n": 32,
+      "k": 4,
+      "dw": 1.246,
+      "features": [
+        "hotel_nights",
+        "al_nights",
+        "revpar"
+      ]
+    },
+    "A_full_32q": {
+      "r2": 0.9229,
+      "r2_adj": 0.8651,
+      "rmse": 140.2,
+      "n": 15,
+      "k": 6,
+      "dw": 0.805,
+      "features": [
+        "nights",
+        "revpar",
+        "al_share",
+        "building_permits",
+        "gt_accommodation"
+      ]
+    },
+    "E_segments_32q": {
+      "r2": 0.873,
+      "r2_adj": 0.8476,
+      "rmse": 205.9,
+      "n": 31,
+      "k": 5,
+      "dw": 1.187,
+      "features": [
+        "hotel_nights",
+        "al_nights",
+        "revpar",
+        "building_permits"
+      ]
+    },
+    "F_revenue_32q": {
+      "r2": 0.833,
+      "r2_adj": 0.7996,
+      "rmse": 236.1,
+      "n": 31,
+      "k": 5,
+      "dw": 1.095,
+      "features": [
+        "nights",
+        "revenue",
+        "al_share",
+        "building_permits"
+      ]
+    },
+    "G_kitchen_sink": {
+      "r2": 0.9858,
+      "r2_adj": 0.9668,
+      "rmse": 60.3,
+      "n": 15,
+      "k": 8,
+      "dw": 2.773,
+      "features": [
+        "nights",
+        "revpar",
+        "al_share",
+        "building_permits",
+        "gt_accommodation",
+        "gt_golf",
+        "gt_realestate"
+      ]
+    },
+    "D_nights_only": {
+      "r2": 0.5971,
+      "r2_adj": 0.5693,
+      "rmse": 367.7,
+      "n": 32,
+      "k": 2,
+      "dw": 0.023,
+      "features": [
+        "nights"
+      ]
+    },
+    "H_minimal": {
+      "r2": 0.8633,
+      "r2_adj": 0.8487,
+      "rmse": 214.1,
+      "n": 32,
+      "k": 3,
+      "dw": 1.583,
+      "features": [
+        "revpar",
+        "al_share"
+      ]
+    }
+  }
+}
