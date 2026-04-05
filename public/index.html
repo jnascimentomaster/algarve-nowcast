@@ -5,519 +5,139 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Algarve Economy Nowcast</title>
 <meta name="description" content="Real-time GDP nowcast for the Algarve region, Portugal. Sectoral decomposition model using INE official statistics.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/react-is@18/umd/react-is.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
-:root {
-  --bg: #F7F3EE;
-  --card: #FFFFFF;
-  --border: #E2DCD4;
-  --text: #1A1A1A;
-  --muted: #6B6560;
-  --dim: #9C9590;
-  --accent: #D4553A;
-  --accent2: #2563EB;
-  --teal: #0F766E;
-  --gold: #B8860B;
-  --sector-304: #D4553A;
-  --sector-309: #2563EB;
-  --sector-307: #0F766E;
-  --sector-203: #B8860B;
-  --sector-308: #7C3AED;
-  --sector-rest: #9C9590;
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
-  font-family: 'Instrument Sans', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-.serif { font-family: 'DM Serif Display', serif; }
-.mono { font-family: 'JetBrains Mono', monospace; }
-.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 24px;
-}
-.loading {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; font-size: 14px; color: var(--muted);
-}
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.fade-up { animation: fadeUp 0.5s ease-out both; }
-.fade-up-1 { animation-delay: 0.05s; }
-.fade-up-2 { animation-delay: 0.1s; }
-.fade-up-3 { animation-delay: 0.15s; }
-.fade-up-4 { animation-delay: 0.2s; }
-.fade-up-5 { animation-delay: 0.25s; }
+:root { --bg:#F7F3EE;--card:#FFFFFF;--border:#E2DCD4;--text:#1A1A1A;--muted:#6B6560;--dim:#9C9590;--accent:#D4553A;--blue:#2563EB;--teal:#0F766E;--gold:#B8860B;--purple:#7C3AED; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Instrument Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+.serif{font-family:'DM Serif Display',serif}.mono{font-family:'JetBrains Mono',monospace}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:24px;margin-bottom:16px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{padding:10px 20px;font-size:13px;font-weight:400;color:var(--muted);background:0;border:0;border-bottom:2px solid transparent;cursor:pointer;font-family:inherit}
+.tab.active{font-weight:600;color:var(--accent);border-bottom-color:var(--accent)}
+.kpi-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-bottom:22px}
+@media(max-width:700px){.kpi-grid{grid-template-columns:1fr}}
+.kpi-main{border-left:4px solid var(--accent)}
+.kpi-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;font-weight:600}
+.kpi-value{font-size:44px;color:var(--accent);margin-top:6px;line-height:1}
+.kpi-sub{font-size:12px;color:var(--muted);margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:7px 8px;text-align:left;font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border)}
+td{padding:9px 8px;border-bottom:1px solid var(--border)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.sector-card{border-left:3px solid var(--dim);margin-bottom:14px}
+.sector-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px 20px;font-size:12px}
+.sector-grid dt{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px}
+.warn-box{margin-top:12px;padding:10px 14px;background:#FEF3CD;border-radius:4px;font-size:12px;color:#856404}
+.chart-wrap{position:relative;height:300px;margin-top:12px}.chart-wrap-sm{height:220px}
+.hidden{display:none}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;color:var(--dim);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}.fade{animation:fadeUp .4s ease-out both}
 </style>
 </head>
 <body>
-<div id="root"><div class="loading">Loading data…</div></div>
+<header style="border-bottom:2px solid var(--text);padding:28px 0 18px;margin-bottom:28px">
+  <div class="container" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 class="serif" style="font-size:28px;font-weight:400;letter-spacing:-0.02em">Algarve Economy Nowcast</h1>
+      <p style="color:var(--muted);font-size:13px;margin-top:4px">Sectoral GDP tracking · Algarve, Portugal</p>
+    </div>
+    <div style="text-align:right">
+      <div class="mono" style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:0.08em">Updated</div>
+      <div class="mono" id="updated-date" style="font-size:13px;color:var(--muted)">—</div>
+    </div>
+  </div>
+</header>
+<div class="container">
+  <nav class="tabs" id="nav-tabs">
+    <button class="tab active" data-tab="overview">Nowcast</button>
+    <button class="tab" data-tab="sectors">Sectors</button>
+    <button class="tab" data-tab="indicators">Indicators</button>
+    <button class="tab" data-tab="method">Methodology</button>
+  </nav>
+  <div id="tab-overview"><div class="card" style="color:var(--muted)">Loading data…</div></div>
+  <div id="tab-sectors" class="hidden"></div>
+  <div id="tab-indicators" class="hidden"></div>
+  <div id="tab-method" class="hidden"></div>
+  <footer><span>Data: INE (Statistics Portugal) · Google Trends</span><span>Algarve Nowcast v3</span></footer>
+</div>
+<script>
+const C={304:'#D4553A',309:'#2563EB',307:'#0F766E',203:'#B8860B',308:'#7C3AED',REST:'#9C9590'};
+const L={304:'Trade & Tourism',309:'Public Administration',307:'Real Estate',203:'Construction',308:'Consultancy',REST:'Other Sectors'};
+const IL={nights:'Overnight Stays',revpar:'RevPAR (€/night)',al_share:'AL Market Share',building_permits:'Building Permits',airport_pax:'Airport Passengers (Faro)',housing_tx:'Housing Transactions (€k)',unemployment:'Unemployment Rate (%)'};
+const IC={nights:'#D4553A',revpar:'#0F766E',al_share:'#7C3AED',building_permits:'#B8860B',airport_pax:'#2563EB',housing_tx:'#0F766E',unemployment:'#D4553A'};
+let allCharts={};
 
-<script type="text/babel">
-const { useState, useEffect } = React;
-const { ResponsiveContainer, ComposedChart, AreaChart, Area, BarChart, Bar, LineChart, Line,
-        XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine, Legend, PieChart, Pie } = Recharts;
+function fmt(v){return v>=1000?'€'+(v/1000).toFixed(2)+'B':'€'+Math.round(v)+'M'}
+function r2c(v){return v>.8?'var(--teal)':v>.5?'var(--gold)':'var(--accent)'}
+function dwc(v){return v>1.5?'var(--teal)':v>.8?'var(--gold)':'var(--accent)'}
 
-const SECTOR_COLORS = {
-  '304':'#D4553A','309':'#2563EB','307':'#0F766E',
-  '203':'#B8860B','308':'#7C3AED','REST':'#9C9590'
-};
-const SECTOR_LABELS = {
-  '304':'Trade & Tourism','309':'Public Administration','307':'Real Estate',
-  '203':'Construction','308':'Consultancy','REST':'Other Sectors'
-};
+document.getElementById('nav-tabs').addEventListener('click',function(e){
+  if(!e.target.matches('.tab'))return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));
+  document.getElementById('tab-'+e.target.dataset.tab).classList.remove('hidden');
+  setTimeout(()=>Object.values(allCharts).forEach(c=>c.resize()),50);
+});
 
-const fmt = v => v >= 1000 ? `${(v/1000).toFixed(2)}B` : `${Math.round(v)}M`;
-const fmtE = v => `€${fmt(v)}`;
+fetch('./data.json')
+.then(r=>{if(!r.ok)throw new Error('data.json: HTTP '+r.status);return r.json()})
+.then(d=>{
+  document.getElementById('updated-date').textContent=d.updated;
+  buildOverview(d);buildSectors(d);buildIndicators(d);buildMethod();
+})
+.catch(err=>{
+  document.getElementById('tab-overview').innerHTML='<div class="card" style="color:var(--accent)"><h3>Error</h3><p class="mono" style="margin-top:8px;font-size:13px">'+err.message+'</p><p style="margin-top:8px;color:var(--muted);font-size:13px">Check that data.json exists alongside index.html.</p></div>';
+});
 
-function App() {
-  const [data, setData] = useState(null);
-  const [tab, setTab] = useState('overview');
+function buildOverview(d){
+  const nc=d.nowcast,sec=d.sectors,diag=d.diagnostics;
+  const ss=Object.entries(sec).sort((a,b)=>b[1].point-a[1].point);
+  document.getElementById('tab-overview').innerHTML=`
+  <div class="kpi-grid fade">
+    <div class="card kpi-main"><div class="kpi-label">${d.nowcast_quarter} GVA Estimate</div><div class="kpi-value serif">${fmt(nc.gva_meur)}</div><div class="kpi-sub mono">90% CI: [${fmt(nc.lower_90)} – ${fmt(nc.upper_90)}]</div></div>
+    <div class="card"><div class="kpi-label">Model Precision</div><div class="mono" style="font-size:26px;margin-top:10px;font-weight:700">±€${Math.round(nc.rmse_meur)}M</div><div class="kpi-sub">${(nc.rmse_meur/nc.gva_meur*100).toFixed(1)}% of estimate</div></div>
+    <div class="card"><div class="kpi-label">Annualized GDP</div><div class="mono" style="font-size:26px;margin-top:10px;font-weight:700">€${(nc.gdp_meur*4/1000).toFixed(1)}B</div><div class="kpi-sub">GVA × 1.08 × 4</div></div>
+  </div>
+  <div class="card fade"><h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Quarterly GVA — Chow-Lin + Nowcast</h3><div class="chart-wrap"><canvas id="c-gva"></canvas></div></div>
+  <div style="display:grid;grid-template-columns:260px 1fr;gap:14px" class="fade">
+    <div class="card" style="text-align:center"><h3 style="font-size:13px;font-weight:600;margin-bottom:8px;text-align:left">Sector Mix</h3><div style="width:200px;height:200px;margin:0 auto"><canvas id="c-pie"></canvas></div></div>
+    <div class="card"><h3 style="font-size:13px;font-weight:600;margin-bottom:10px">Sectoral Decomposition</h3>
+      <table><thead><tr><th>Sector</th><th>GVA</th><th>Weight</th><th>R²adj</th><th>RMSE</th><th>DW</th></tr></thead><tbody>${ss.map(([s,v])=>{const dd=diag[s]||{};return`<tr><td style="font-weight:500"><span class="dot" style="background:${C[s]}"></span>${L[s]}</td><td class="mono" style="font-size:12px">€${Math.round(v.point)}M</td><td class="mono" style="font-size:12px">${v.weight_pct}%</td><td class="mono" style="font-size:12px;color:${r2c(dd.r2_adj||0)}">${dd.r2_adj?.toFixed(3)||'—'}</td><td class="mono" style="font-size:12px">€${Math.round(dd.rmse||0)}M</td><td class="mono" style="font-size:12px;color:${dwc(dd.dw||0)}">${dd.dw?.toFixed(2)||'—'}</td></tr>`}).join('')}</tbody></table>
+    </div>
+  </div>`;
 
-  useEffect(() => {
-    fetch('./data.json').then(r => r.json()).then(setData).catch(() => {
-      // Fallback: try relative paths
-      fetch('/data.json').then(r => r.json()).then(setData);
-    });
-  }, []);
-
-  if (!data) return React.createElement('div', {className:'loading'}, 'Loading…');
-
-  const nc = data.nowcast;
-  const sectors = data.sectors;
-  const diag = data.diagnostics;
-
-  // Build GVA time series
-  const gvaQ = data.sector_quarterly?.gva_total_sectoral || {};
-  const gvaData = Object.entries(gvaQ).map(([q,v]) => ({q, gva:v}));
-  gvaData.push({q: data.nowcast_quarter, gva: nc.gva_meur, forecast: true,
-                 lower: nc.lower_90, upper: nc.upper_90});
-
-  // Sector stacked area
-  const sectorKeys = ['304','309','307','203','308','REST'];
-  const sectorStackData = Object.keys(data.sector_quarterly?.gva_304 || {}).map(q => {
-    const row = {q};
-    sectorKeys.forEach(s => { row[s] = data.sector_quarterly?.[`gva_${s}`]?.[q] || 0; });
-    return row;
-  });
-
-  // Sector shares over time (annual)
-  const shareYears = Object.keys(data.sector_shares?.['304'] || {}).sort();
-  const shareData = shareYears.map(y => {
-    const row = {year: y};
-    sectorKeys.forEach(s => { row[s] = data.sector_shares?.[s]?.[y] || 0; });
-    return row;
-  });
-
-  // Indicators
-  const indKeys = Object.keys(data.indicators || {});
-
-  // Pie data for current nowcast
-  const pieData = Object.entries(sectors).map(([s, d]) => ({
-    name: SECTOR_LABELS[s] || s, value: d.point, code: s
-  }));
-
-  const tabs = [
-    {id:'overview', label:'Nowcast'},
-    {id:'sectors', label:'Sectors'},
-    {id:'indicators', label:'Indicators'},
-    {id:'methodology', label:'Methodology'},
-  ];
-
-  return (
-    React.createElement('div', {style:{minHeight:'100vh', paddingBottom:60}},
-
-      // ─── Header ───
-      React.createElement('header', {style:{
-        borderBottom:'2px solid var(--text)', padding:'32px 0 20px',
-        marginBottom:32
-      }},
-        React.createElement('div', {className:'container'},
-          React.createElement('div', {style:{display:'flex', justifyContent:'space-between',
-            alignItems:'baseline', flexWrap:'wrap', gap:12}},
-            React.createElement('div', null,
-              React.createElement('h1', {className:'serif', style:{fontSize:32, fontWeight:400,
-                letterSpacing:'-0.02em', lineHeight:1.2}}, 'Algarve Economy Nowcast'),
-              React.createElement('p', {style:{color:'var(--muted)', fontSize:14, marginTop:6}},
-                'Sectoral GDP tracking for the Algarve region, Portugal')
-            ),
-            React.createElement('div', {style:{textAlign:'right'}},
-              React.createElement('div', {className:'mono', style:{fontSize:11, color:'var(--dim)',
-                textTransform:'uppercase', letterSpacing:'0.08em'}}, 'Last updated'),
-              React.createElement('div', {className:'mono', style:{fontSize:13, color:'var(--muted)'}},
-                data.updated)
-            )
-          )
-        )
-      ),
-
-      // ─── Nav ───
-      React.createElement('div', {className:'container'},
-        React.createElement('nav', {style:{display:'flex', gap:0, borderBottom:'1px solid var(--border)',
-          marginBottom:28}},
-          tabs.map(t =>
-            React.createElement('button', {key:t.id, onClick:() => setTab(t.id), style:{
-              padding:'10px 20px', fontSize:13, fontWeight: tab===t.id ? 600 : 400,
-              color: tab===t.id ? 'var(--accent)' : 'var(--muted)',
-              background:'transparent', border:'none', cursor:'pointer',
-              borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent',
-              fontFamily:'inherit', transition:'all 0.15s'
-            }}, t.label)
-          )
-        ),
-
-        // ═══════════════ OVERVIEW TAB ═══════════════
-        tab === 'overview' && React.createElement('div', null,
-
-          // Hero KPIs
-          React.createElement('div', {className:'fade-up', style:{
-            display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:16, marginBottom:24
-          }},
-            // Main estimate
-            React.createElement('div', {className:'card', style:{
-              borderLeft:'4px solid var(--accent)', padding:'28px 24px'
-            }},
-              React.createElement('div', {style:{fontSize:11, color:'var(--dim)',
-                textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:600}},
-                `${data.nowcast_quarter} GVA Estimate`),
-              React.createElement('div', {className:'serif', style:{
-                fontSize:48, color:'var(--accent)', marginTop:8, lineHeight:1
-              }}, `€${(nc.gva_meur/1000).toFixed(2)}B`),
-              React.createElement('div', {className:'mono', style:{
-                fontSize:12, color:'var(--muted)', marginTop:8
-              }}, `90% CI: [€${fmt(nc.lower_90)} – €${fmt(nc.upper_90)}]`)
-            ),
-            // RMSE
-            React.createElement('div', {className:'card'},
-              React.createElement('div', {style:{fontSize:11, color:'var(--dim)',
-                textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:600}}, 'Model Precision'),
-              React.createElement('div', {className:'mono', style:{
-                fontSize:28, marginTop:12, fontWeight:700
-              }}, `±€${Math.round(nc.rmse_meur)}M`),
-              React.createElement('div', {style:{fontSize:12, color:'var(--muted)', marginTop:4}},
-                `${(nc.rmse_meur/nc.gva_meur*100).toFixed(1)}% of estimate`)
-            ),
-            // Annualized
-            React.createElement('div', {className:'card'},
-              React.createElement('div', {style:{fontSize:11, color:'var(--dim)',
-                textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:600}}, 'Annualized GDP'),
-              React.createElement('div', {className:'mono', style:{
-                fontSize:28, marginTop:12, fontWeight:700
-              }}, `€${(nc.gdp_meur*4/1000).toFixed(1)}B`),
-              React.createElement('div', {style:{fontSize:12, color:'var(--muted)', marginTop:4}},
-                'GVA × 1.08 × 4')
-            )
-          ),
-
-          // GVA time series
-          React.createElement('div', {className:'card fade-up fade-up-1',
-            style:{marginBottom:24}},
-            React.createElement('h3', {style:{fontSize:15, fontWeight:600, marginBottom:16}},
-              'Quarterly GVA — Chow-Lin disaggregation + Nowcast'),
-            React.createElement(ResponsiveContainer, {width:'100%', height:300},
-              React.createElement(ComposedChart, {data:gvaData, margin:{top:10,right:20,left:10,bottom:40}},
-                React.createElement(CartesianGrid, {strokeDasharray:'3 3', stroke:'#E2DCD4'}),
-                React.createElement(XAxis, {dataKey:'q', tick:{fontSize:10, fill:'#9C9590'},
-                  interval:3, angle:-45, textAnchor:'end', height:50}),
-                React.createElement(YAxis, {tick:{fontSize:10, fill:'#9C9590'},
-                  tickFormatter: v => `€${(v/1000).toFixed(1)}B`}),
-                React.createElement(Tooltip, {
-                  contentStyle:{background:'#fff', border:'1px solid #E2DCD4',
-                    borderRadius:4, fontSize:12, fontFamily:'JetBrains Mono'},
-                  formatter: v => [`€${Math.round(v)}M`, 'GVA']}),
-                React.createElement(Area, {type:'monotone', dataKey:'gva',
-                  stroke:'#D4553A', fill:'#D4553A', fillOpacity:0.08, strokeWidth:2,
-                  dot: d => d.payload.forecast ?
-                    React.createElement('circle', {cx:d.cx,cy:d.cy,r:5,fill:'#D4553A',stroke:'#fff',strokeWidth:2}) :
-                    null
-                })
-              )
-            )
-          ),
-
-          // Sector donut + table
-          React.createElement('div', {style:{display:'grid', gridTemplateColumns:'280px 1fr',
-            gap:16}, className:'fade-up fade-up-2'},
-            // Donut
-            React.createElement('div', {className:'card', style:{display:'flex',
-              flexDirection:'column', alignItems:'center', justifyContent:'center'}},
-              React.createElement('h3', {style:{fontSize:13, fontWeight:600, marginBottom:8,
-                alignSelf:'flex-start'}}, 'Sector Mix'),
-              React.createElement(ResponsiveContainer, {width:220, height:220},
-                React.createElement(PieChart, null,
-                  React.createElement(Pie, {data:pieData, dataKey:'value', nameKey:'name',
-                    cx:'50%', cy:'50%', innerRadius:55, outerRadius:90, strokeWidth:2, stroke:'#fff'},
-                    pieData.map((d,i) =>
-                      React.createElement(Cell, {key:i, fill:SECTOR_COLORS[d.code]}))
-                  ),
-                  React.createElement(Tooltip, {
-                    formatter: v => `€${Math.round(v)}M`,
-                    contentStyle:{fontSize:12, borderRadius:4}})
-                )
-              )
-            ),
-            // Sector table
-            React.createElement('div', {className:'card'},
-              React.createElement('h3', {style:{fontSize:13, fontWeight:600, marginBottom:12}},
-                'Sectoral Decomposition'),
-              React.createElement('table', {style:{width:'100%', borderCollapse:'collapse', fontSize:13}},
-                React.createElement('thead', null,
-                  React.createElement('tr', {style:{borderBottom:'1px solid var(--border)'}},
-                    ['Sector','GVA','Weight','R²adj','RMSE','DW'].map(h =>
-                      React.createElement('th', {key:h, style:{padding:'8px 10px', textAlign:'left',
-                        fontSize:10, fontWeight:600, color:'var(--dim)',
-                        textTransform:'uppercase', letterSpacing:'0.05em'}}, h))
-                  )
-                ),
-                React.createElement('tbody', null,
-                  Object.entries(sectors).sort((a,b) => b[1].point - a[1].point).map(([s, d]) =>
-                    React.createElement('tr', {key:s, style:{borderBottom:'1px solid var(--border)'}},
-                      React.createElement('td', {style:{padding:'10px', fontWeight:500}},
-                        React.createElement('span', {style:{display:'inline-block', width:8, height:8,
-                          borderRadius:'50%', background:SECTOR_COLORS[s], marginRight:8}}),
-                        SECTOR_LABELS[s]
-                      ),
-                      React.createElement('td', {className:'mono', style:{padding:'10px', fontSize:12}},
-                        `€${Math.round(d.point)}M`),
-                      React.createElement('td', {className:'mono', style:{padding:'10px', fontSize:12}},
-                        `${d.weight_pct}%`),
-                      React.createElement('td', {className:'mono', style:{padding:'10px', fontSize:12,
-                        color: diag[s]?.r2_adj > 0.8 ? 'var(--teal)' :
-                               diag[s]?.r2_adj > 0.5 ? 'var(--gold)' : 'var(--accent)'}},
-                        diag[s]?.r2_adj?.toFixed(3) || '—'),
-                      React.createElement('td', {className:'mono', style:{padding:'10px', fontSize:12}},
-                        diag[s]?.rmse ? `€${Math.round(diag[s].rmse)}M` : '—'),
-                      React.createElement('td', {className:'mono', style:{padding:'10px', fontSize:12,
-                        color: diag[s]?.dw > 1.5 ? 'var(--teal)' :
-                               diag[s]?.dw > 0.8 ? 'var(--gold)' : 'var(--accent)'}},
-                        diag[s]?.dw?.toFixed(2) || '—')
-                    )
-                  )
-                )
-              )
-            )
-          )
-        ),
-
-        // ═══════════════ SECTORS TAB ═══════════════
-        tab === 'sectors' && React.createElement('div', null,
-          // Stacked area
-          React.createElement('div', {className:'card fade-up', style:{marginBottom:24}},
-            React.createElement('h3', {style:{fontSize:15, fontWeight:600, marginBottom:16}},
-              'Quarterly GVA by Sector (Chow-Lin)'),
-            React.createElement(ResponsiveContainer, {width:'100%', height:340},
-              React.createElement(AreaChart, {data:sectorStackData,
-                margin:{top:10,right:20,left:10,bottom:40}},
-                React.createElement(CartesianGrid, {strokeDasharray:'3 3', stroke:'#E2DCD4'}),
-                React.createElement(XAxis, {dataKey:'q', tick:{fontSize:9, fill:'#9C9590'},
-                  interval:3, angle:-45, textAnchor:'end', height:50}),
-                React.createElement(YAxis, {tick:{fontSize:10, fill:'#9C9590'},
-                  tickFormatter: v => `€${(v/1000).toFixed(1)}B`}),
-                React.createElement(Tooltip, {
-                  contentStyle:{background:'#fff', border:'1px solid #E2DCD4',
-                    borderRadius:4, fontSize:11, fontFamily:'JetBrains Mono'},
-                  formatter: (v, name) => [`€${Math.round(v)}M`, SECTOR_LABELS[name] || name]}),
-                ...sectorKeys.slice().reverse().map(s =>
-                  React.createElement(Area, {key:s, type:'monotone', dataKey:s,
-                    stackId:'1', fill:SECTOR_COLORS[s], stroke:SECTOR_COLORS[s],
-                    fillOpacity:0.85, strokeWidth:0})
-                )
-              )
-            ),
-            React.createElement('div', {style:{display:'flex', gap:16, marginTop:8,
-              flexWrap:'wrap', justifyContent:'center'}},
-              sectorKeys.map(s =>
-                React.createElement('span', {key:s, style:{fontSize:11, color:'var(--muted)',
-                  display:'flex', alignItems:'center', gap:4}},
-                  React.createElement('span', {style:{width:8, height:8, borderRadius:2,
-                    background:SECTOR_COLORS[s], display:'inline-block'}}),
-                  SECTOR_LABELS[s]
-                )
-              )
-            )
-          ),
-
-          // Structural shares over time
-          React.createElement('div', {className:'card fade-up fade-up-1', style:{marginBottom:24}},
-            React.createElement('h3', {style:{fontSize:15, fontWeight:600, marginBottom:16}},
-              'Sector Shares 1995–2023 (% of regional GVA)'),
-            React.createElement(ResponsiveContainer, {width:'100%', height:300},
-              React.createElement(AreaChart, {data:shareData,
-                margin:{top:10,right:20,left:10,bottom:5}},
-                React.createElement(CartesianGrid, {strokeDasharray:'3 3', stroke:'#E2DCD4'}),
-                React.createElement(XAxis, {dataKey:'year', tick:{fontSize:10, fill:'#9C9590'},
-                  interval:4}),
-                React.createElement(YAxis, {tick:{fontSize:10, fill:'#9C9590'},
-                  tickFormatter: v => `${v}%`, domain:[0, 100]}),
-                React.createElement(Tooltip, {
-                  contentStyle:{background:'#fff', border:'1px solid #E2DCD4',
-                    borderRadius:4, fontSize:11},
-                  formatter: (v, name) => [`${v.toFixed(1)}%`, SECTOR_LABELS[name] || name]}),
-                ...sectorKeys.slice().reverse().map(s =>
-                  React.createElement(Area, {key:s, type:'monotone', dataKey:s,
-                    stackId:'1', fill:SECTOR_COLORS[s], stroke:'none', fillOpacity:0.85})
-                )
-              )
-            )
-          ),
-
-          // Bridge model details per sector
-          React.createElement('div', {className:'fade-up fade-up-2', style:{
-            display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))',
-            gap:16}},
-            Object.entries(diag).map(([s, d]) =>
-              React.createElement('div', {key:s, className:'card', style:{
-                borderLeft:`3px solid ${SECTOR_COLORS[s]}`}},
-                React.createElement('h4', {style:{fontSize:13, fontWeight:600, marginBottom:10}},
-                  `${SECTOR_LABELS[s]} (${s})`),
-                React.createElement('div', {style:{display:'grid', gridTemplateColumns:'1fr 1fr',
-                  gap:'6px 16px', fontSize:12}},
-                  React.createElement('span', {style:{color:'var(--muted)'}}, 'R² adjusted'),
-                  React.createElement('span', {className:'mono', style:{fontWeight:600,
-                    color: d.r2_adj > 0.8 ? 'var(--teal)' : d.r2_adj > 0.5 ? 'var(--gold)' : 'var(--accent)'}},
-                    d.r2_adj.toFixed(4)),
-                  React.createElement('span', {style:{color:'var(--muted)'}}, 'RMSE'),
-                  React.createElement('span', {className:'mono'}, `€${d.rmse}M`),
-                  React.createElement('span', {style:{color:'var(--muted)'}}, 'Durbin-Watson'),
-                  React.createElement('span', {className:'mono', style:{
-                    color: d.dw > 1.5 ? 'var(--teal)' : d.dw > 0.8 ? 'var(--gold)' : 'var(--accent)'}},
-                    d.dw?.toFixed(3)),
-                  React.createElement('span', {style:{color:'var(--muted)'}}, 'Observations'),
-                  React.createElement('span', {className:'mono'}, d.n),
-                  React.createElement('span', {style:{color:'var(--muted)'}}, 'Features'),
-                  React.createElement('span', {className:'mono', style:{fontSize:11}},
-                    d.features?.filter(f => f !== 'covid').join(', '))
-                )
-              )
-            )
-          )
-        ),
-
-        // ═══════════════ INDICATORS TAB ═══════════════
-        tab === 'indicators' && React.createElement('div', null,
-          Object.entries(data.indicators).map(([key, series]) => {
-            const chartData = Object.entries(series).map(([q, v]) => ({q, value: v}));
-            const labels = {nights:'Overnight Stays', revpar:'RevPAR (€/night)',
-              al_share:'AL Market Share', building_permits:'Building Permits',
-              airport_pax:'Airport Passengers (Faro)', housing_tx:'Housing Transactions (€k)',
-              unemployment:'Unemployment Rate (%)'};
-            const colors = {nights:'#D4553A', revpar:'#0F766E', al_share:'#7C3AED',
-              building_permits:'#B8860B', airport_pax:'#2563EB', housing_tx:'#0F766E',
-              unemployment:'#D4553A'};
-            const isRate = key === 'al_share' || key === 'unemployment';
-            return React.createElement('div', {key, className:'card fade-up',
-              style:{marginBottom:16}},
-              React.createElement('h3', {style:{fontSize:14, fontWeight:600, marginBottom:12}},
-                labels[key] || key),
-              React.createElement(ResponsiveContainer, {width:'100%', height:200},
-                React.createElement(AreaChart, {data:chartData,
-                  margin:{top:5,right:20,left:10,bottom:40}},
-                  React.createElement(CartesianGrid, {strokeDasharray:'3 3', stroke:'#E2DCD4'}),
-                  React.createElement(XAxis, {dataKey:'q', tick:{fontSize:9, fill:'#9C9590'},
-                    interval: Math.max(1, Math.floor(chartData.length/12)),
-                    angle:-45, textAnchor:'end', height:50}),
-                  React.createElement(YAxis, {tick:{fontSize:10, fill:'#9C9590'},
-                    tickFormatter: isRate ? v => `${(v*100).toFixed(0)}%` : undefined}),
-                  React.createElement(Tooltip, {
-                    contentStyle:{background:'#fff', border:'1px solid #E2DCD4',
-                      borderRadius:4, fontSize:12, fontFamily:'JetBrains Mono'},
-                    formatter: v => [isRate ? `${(v*100).toFixed(1)}%` :
-                      v > 10000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(1), labels[key]]}),
-                  React.createElement(Area, {type:'monotone', dataKey:'value',
-                    stroke:colors[key] || '#D4553A', fill:colors[key] || '#D4553A',
-                    fillOpacity:0.1, strokeWidth:2})
-                )
-              )
-            );
-          })
-        ),
-
-        // ═══════════════ METHODOLOGY TAB ═══════════════
-        tab === 'methodology' && React.createElement('div', {className:'card fade-up'},
-          React.createElement('h3', {className:'serif', style:{fontSize:22, marginBottom:16}},
-            'Methodology'),
-          React.createElement('div', {style:{fontSize:14, color:'var(--muted)', lineHeight:1.8,
-            maxWidth:720}},
-
-            React.createElement('h4', {style:{fontWeight:600, color:'var(--text)', marginTop:20,
-              marginBottom:8, fontSize:15}}, '1. Temporal Disaggregation'),
-            React.createElement('p', null,
-              'Annual GVA by sector (INE 0014109 × 0014113) is disaggregated to quarterly frequency using ',
-              'the Chow-Lin (1971) method. Each sector uses an appropriate high-frequency interpolator: ',
-              'overnight stays for tourism and consultancy, housing transactions for real estate, ',
-              'building permits for construction, and linear trend for public administration.'),
-
-            React.createElement('h4', {style:{fontWeight:600, color:'var(--text)', marginTop:20,
-              marginBottom:8, fontSize:15}}, '2. Bridge Equations'),
-            React.createElement('p', null,
-              'Ridge-regularized regressions map quarterly indicators to quarterly sector GVA. ',
-              'Sector 304 (40% of GVA) uses overnight stays, RevPAR, and AL market share. ',
-              'Sector 307 uses housing transaction values. Sector 308 uses tourism proxies ',
-              '(r=0.93 correlation with total GVA growth). Sectors 309 and REST use trend models.'),
-
-            React.createElement('h4', {style:{fontWeight:600, color:'var(--text)', marginTop:20,
-              marginBottom:8, fontSize:15}}, '3. Aggregation'),
-            React.createElement('p', null,
-              'Sector nowcasts are summed to produce aggregate GVA. GDP is estimated as GVA × 1.08 ',
-              '(historical taxes-on-products ratio). Confidence intervals assume independent sector errors. ',
-              'Partial-quarter data is extrapolated using historical within-quarter seasonal patterns.'),
-
-            React.createElement('h4', {style:{fontWeight:600, color:'var(--text)', marginTop:20,
-              marginBottom:8, fontSize:15}}, '4. Data Sources'),
-            React.createElement('p', null,
-              'All official statistics from INE (Statistics Portugal) via their public JSON API. ',
-              'Google Trends sub-indices from UK market (accommodation, golf, real estate). ',
-              'Revenue series extended to 2017 via INE 0009813 (NUTS-2013 code). ',
-              'Sector shares available 1995–2023 (29 years); total GVA 1995–2024.'),
-
-            React.createElement('h4', {style:{fontWeight:600, color:'var(--text)', marginTop:20,
-              marginBottom:8, fontSize:15}}, '5. Known Limitations'),
-            React.createElement('ul', {style:{paddingLeft:20, marginTop:4}},
-              React.createElement('li', null, 'Construction sector bridge has low R²adj (0.28) — building permits are a leading, not contemporaneous, indicator.'),
-              React.createElement('li', {style:{marginTop:4}}, 'Real estate GVA includes imputed rents (~70% of sector), which transactions cannot proxy.'),
-              React.createElement('li', {style:{marginTop:4}}, 'Low Durbin-Watson on trend-driven sectors suggests autocorrelated residuals and understated uncertainty.'),
-              React.createElement('li', {style:{marginTop:4}}, '2024 sector shares are extrapolated from 2023 (INE not yet published).')
-            ),
-
-            React.createElement('div', {style:{marginTop:24, paddingTop:16,
-              borderTop:'1px solid var(--border)', fontSize:12, color:'var(--dim)'}},
-              React.createElement('p', null, 'Model: Algarve Nowcast v3 Sectoral · ',
-                'Chow-Lin ρ range: 0.973–0.990 · ',
-                `Training: 32 quarters (2017-Q1 to 2024-Q4) · `,
-                `6 sector models + COVID dummy · Ridge α=1.0`),
-              React.createElement('p', {style:{marginTop:4}},
-                'INE indicator codes: 0014109, 0014113, 0009808, 0009813, 0012098, 0012786, 0012136, 0000861/62')
-            )
-          )
-        ),
-
-        // Footer
-        React.createElement('footer', {style:{marginTop:40, paddingTop:16,
-          borderTop:'1px solid var(--border)', fontSize:11, color:'var(--dim)',
-          display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8}},
-          React.createElement('span', null, 'Data: INE (Statistics Portugal) · Google Trends'),
-          React.createElement('span', null, `Algarve Nowcast v3 · Updated ${data.updated}`)
-        )
-      )
-    )
-  );
+  const gQ=d.sector_quarterly?.gva_total_sectoral||{};
+  const labs=[...Object.keys(gQ),d.nowcast_quarter],vals=[...Object.values(gQ),nc.gva_meur];
+  const pr=labs.map((_,i)=>i===labs.length-1?6:0),pc=labs.map((_,i)=>i===labs.length-1?'#D4553A':'rgba(212,85,58,0.6)');
+  allCharts.gva=new Chart(document.getElementById('c-gva'),{type:'line',data:{labels:labs,datasets:[{data:vals,borderColor:'#D4553A',backgroundColor:'rgba(212,85,58,0.08)',fill:true,tension:.3,pointRadius:pr,pointBackgroundColor:pc,pointBorderColor:'#fff',pointBorderWidth:2,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'€'+Math.round(c.parsed.y)+'M'}}},scales:{x:{ticks:{maxRotation:45,font:{size:10},color:'#9C9590'},grid:{display:false}},y:{ticks:{callback:v=>'€'+(v/1000).toFixed(1)+'B',font:{size:10},color:'#9C9590'},grid:{color:'#E2DCD4'}}}}});
+  allCharts.pie=new Chart(document.getElementById('c-pie'),{type:'doughnut',data:{labels:ss.map(([s])=>L[s]),datasets:[{data:ss.map(([,v])=>v.point),backgroundColor:ss.map(([s])=>C[s]),borderColor:'#fff',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': €'+Math.round(c.parsed)+'M'}}}}});
 }
 
-ReactDOM.render(React.createElement(App), document.getElementById('root'));
+function buildSectors(d){
+  const diag=d.diagnostics,sec=d.sectors;let h='';
+  for(const[s,dd]of Object.entries(diag)){const pt=sec[s]?.point||0,ft=(dd.features||[]).filter(f=>f!=='covid').join(', ');
+    h+=`<div class="card sector-card fade" style="border-left-color:${C[s]}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h4 style="font-size:14px;font-weight:600">${L[s]} <span class="mono" style="font-size:12px;color:var(--dim);font-weight:400">(${s})</span></h4><span class="mono" style="font-size:20px;font-weight:700;color:${C[s]}">€${Math.round(pt)}M</span></div><div class="sector-grid"><div><dt>R² adjusted</dt><dd class="mono" style="font-weight:600;color:${r2c(dd.r2_adj)}">${dd.r2_adj.toFixed(4)}</dd></div><div><dt>RMSE</dt><dd class="mono" style="font-weight:600">€${dd.rmse}M</dd></div><div><dt>Durbin-Watson</dt><dd class="mono" style="font-weight:600;color:${dwc(dd.dw||0)}">${dd.dw?.toFixed(3)||'—'}</dd></div><div><dt>Observations</dt><dd class="mono" style="font-weight:600">${dd.n}</dd></div><div><dt>Features</dt><dd class="mono" style="color:var(--muted)">${ft}</dd></div></div>${s==='203'?'<div class="warn-box">⚠ Low R² — building permits are a leading indicator (12-18mo lag), not contemporaneous with construction output.</div>':''}</div>`}
+  document.getElementById('tab-sectors').innerHTML=h;
+}
+
+function buildIndicators(d){
+  const ind=d.indicators||{};let h='',idx=0;
+  for(const[k,ser]of Object.entries(ind)){h+=`<div class="card fade"><h3 style="font-size:14px;font-weight:600;margin-bottom:4px">${IL[k]||k}</h3><div class="chart-wrap chart-wrap-sm"><canvas id="ci${idx}"></canvas></div></div>`;idx++}
+  document.getElementById('tab-indicators').innerHTML=h;
+  idx=0;
+  for(const[k,ser]of Object.entries(ind)){
+    const labs=Object.keys(ser),vals=Object.values(ser),isR=k==='al_share'||k==='unemployment',col=IC[k]||'#D4553A';
+    allCharts['i'+idx]=new Chart(document.getElementById('ci'+idx),{type:'line',data:{labels:labs,datasets:[{data:vals,borderColor:col,backgroundColor:col+'18',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>isR?(c.parsed.y*100).toFixed(1)+'%':c.parsed.y>10000?Math.round(c.parsed.y/1000)+'k':c.parsed.y.toFixed(1)}}},scales:{x:{ticks:{maxRotation:45,font:{size:9},color:'#9C9590',maxTicksLimit:12},grid:{display:false}},y:{ticks:{callback:isR?v=>(v*100).toFixed(0)+'%':undefined,font:{size:10},color:'#9C9590'},grid:{color:'#E2DCD4'}}}}});
+    idx++}
+}
+
+function buildMethod(){
+  document.getElementById('tab-method').innerHTML=`<div class="card fade"><h3 class="serif" style="font-size:22px;margin-bottom:16px">Methodology</h3><div style="font-size:14px;color:var(--muted);line-height:1.8;max-width:720px"><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">1. Temporal Disaggregation</h4><p>Annual GVA by sector (INE 0014109 × 0014113) is disaggregated to quarterly frequency using the Chow-Lin (1971) method. Each sector uses an appropriate high-frequency interpolator: overnight stays for tourism and consultancy, housing transactions for real estate, building permits for construction, and linear trend for public administration.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">2. Bridge Equations</h4><p>Ridge-regularized regressions map quarterly indicators to quarterly sector GVA. Sector 304 (40% of GVA) uses overnight stays, RevPAR, and AL market share. Sector 307 uses housing transaction values. Sector 308 uses tourism proxies (r=0.93 correlation with total GVA growth). Sectors 309 and REST use trend models.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">3. Aggregation</h4><p>Sector nowcasts are summed to produce aggregate GVA. GDP is estimated as GVA × 1.08 (historical taxes-on-products ratio). Confidence intervals assume independent sector errors. Partial-quarter data is extrapolated using historical within-quarter seasonal patterns.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">4. Known Limitations</h4><p>Construction sector bridge has low R²adj (0.28) — building permits are a leading, not contemporaneous, indicator. Real estate GVA includes imputed rents (~70% of sector), which transactions cannot proxy. Low Durbin-Watson on trend-driven sectors suggests autocorrelated residuals and understated uncertainty. 2024 sector shares are extrapolated from 2023 (INE not yet published).</p><div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--dim)"><p>Model: Algarve Nowcast v3 Sectoral · Chow-Lin ρ: 0.973–0.990 · Training: 32 quarters (2017–2024) · 6 sectors + COVID dummy · Ridge α=1.0</p><p style="margin-top:4px">INE codes: 0014109, 0014113, 0009808, 0009813, 0012098, 0012786, 0012136, 0000861/62</p></div></div></div>`;
+}
 </script>
 </body>
 </html>
