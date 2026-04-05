@@ -14,42 +14,72 @@
       "rmse": 87.1,
       "r2_adj": 0.9274,
       "name": "Com\u00e9rcio e Turismo",
-      "weight_pct": 32.4
+      "weight_pct": 32.4,
+      "prev_year": 828.8,
+      "prev_year_q": "2025-Q1",
+      "yoy_pct": 2.6,
+      "actual_2024q1": 948.6,
+      "vs_actual_2024_pct": -10.4
     },
     "309": {
       "point": 477.9,
       "rmse": 8.8,
       "r2_adj": 0.9634,
       "name": "Administra\u00e7\u00e3o P\u00fablica",
-      "weight_pct": 18.2
+      "weight_pct": 18.2,
+      "prev_year": 458.8,
+      "prev_year_q": "2025-Q1",
+      "yoy_pct": 4.2,
+      "actual_2024q1": 452.2,
+      "vs_actual_2024_pct": 5.7
     },
     "307": {
       "point": 444.3,
       "rmse": 7.7,
       "r2_adj": 0.9234,
       "name": "Imobili\u00e1rio",
-      "weight_pct": 17.0
+      "weight_pct": 17.0,
+      "prev_year": 423.4,
+      "prev_year_q": "2025-Q1",
+      "yoy_pct": 4.9,
+      "actual_2024q1": 400.9,
+      "vs_actual_2024_pct": 10.8
     },
     "203": {
       "point": 146.5,
       "rmse": 28.2,
       "r2_adj": 0.2808,
       "name": "Constru\u00e7\u00e3o",
-      "weight_pct": 5.6
+      "weight_pct": 5.6,
+      "prev_year": 127.3,
+      "prev_year_q": "2025-Q1",
+      "yoy_pct": 15.1,
+      "actual_2024q1": 185.4,
+      "vs_actual_2024_pct": -21.0
     },
     "308": {
       "point": 171.3,
       "rmse": 23.8,
       "r2_adj": 0.8522,
       "name": "Consultoria",
-      "weight_pct": 6.5
+      "weight_pct": 6.5,
+      "prev_year": 160.6,
+      "prev_year_q": "2025-Q1",
+      "yoy_pct": 6.7,
+      "actual_2024q1": 201.7,
+      "vs_actual_2024_pct": -15.1
     },
     "REST": {
       "point": 529.7,
       "rmse": 31.3,
       "r2_adj": 0.8292,
       "name": "Outros Setores",
-      "weight_pct": 20.2
+      "weight_pct": 20.2,
+      "prev_year": 501.9,
+      "prev_year_q": "2025-Q1",
+      "yoy_pct": 5.5,
+      "actual_2024q1": 512.7,
+      "vs_actual_2024_pct": 3.3
     }
   },
   "diagnostics": {
@@ -848,5 +878,147 @@
     "2022": 10362.763,
     "2023": 11511.655,
     "2024": 12446.025
+  },
+  "validation": {
+    "results": [
+      {
+        "quarter": "2021-Q1",
+        "actual": 1639.7,
+        "predicted": 1571.2,
+        "error": -68.5,
+        "error_pct": -4.2,
+        "abs_error_pct": 4.2
+      },
+      {
+        "quarter": "2021-Q2",
+        "actual": 1892.1,
+        "predicted": 2049.4,
+        "error": 157.4,
+        "error_pct": 8.3,
+        "abs_error_pct": 8.3
+      },
+      {
+        "quarter": "2021-Q3",
+        "actual": 2502.1,
+        "predicted": 2440.7,
+        "error": -61.5,
+        "error_pct": -2.5,
+        "abs_error_pct": 2.5
+      },
+      {
+        "quarter": "2021-Q4",
+        "actual": 2115.6,
+        "predicted": 1992.5,
+        "error": -123.1,
+        "error_pct": -5.8,
+        "abs_error_pct": 5.8
+      },
+      {
+        "quarter": "2022-Q1",
+        "actual": 2084.5,
+        "predicted": 1876.5,
+        "error": -207.9,
+        "error_pct": -10.0,
+        "abs_error_pct": 10.0
+      },
+      {
+        "quarter": "2022-Q2",
+        "actual": 2688.8,
+        "predicted": 2426.5,
+        "error": -262.3,
+        "error_pct": -9.8,
+        "abs_error_pct": 9.8
+      },
+      {
+        "quarter": "2022-Q3",
+        "actual": 3103.7,
+        "predicted": 2868.1,
+        "error": -235.7,
+        "error_pct": -7.6,
+        "abs_error_pct": 7.6
+      },
+      {
+        "quarter": "2022-Q4",
+        "actual": 2485.7,
+        "predicted": 2201.0,
+        "error": -284.8,
+        "error_pct": -11.5,
+        "abs_error_pct": 11.5
+      },
+      {
+        "quarter": "2023-Q1",
+        "actual": 2441.0,
+        "predicted": 2086.9,
+        "error": -354.1,
+        "error_pct": -14.5,
+        "abs_error_pct": 14.5
+      },
+      {
+        "quarter": "2023-Q2",
+        "actual": 2969.4,
+        "predicted": 2624.8,
+        "error": -344.6,
+        "error_pct": -11.6,
+        "abs_error_pct": 11.6
+      },
+      {
+        "quarter": "2023-Q3",
+        "actual": 3330.3,
+        "predicted": 3090.7,
+        "error": -239.6,
+        "error_pct": -7.2,
+        "abs_error_pct": 7.2
+      },
+      {
+        "quarter": "2023-Q4",
+        "actual": 2770.9,
+        "predicted": 2416.9,
+        "error": -354.0,
+        "error_pct": -12.8,
+        "abs_error_pct": 12.8
+      },
+      {
+        "quarter": "2024-Q1",
+        "actual": 2701.6,
+        "predicted": 2303.3,
+        "error": -398.3,
+        "error_pct": -14.7,
+        "abs_error_pct": 14.7
+      },
+      {
+        "quarter": "2024-Q2",
+        "actual": 3213.2,
+        "predicted": 2869.1,
+        "error": -344.0,
+        "error_pct": -10.7,
+        "abs_error_pct": 10.7
+      },
+      {
+        "quarter": "2024-Q3",
+        "actual": 3568.7,
+        "predicted": 3378.5,
+        "error": -190.2,
+        "error_pct": -5.3,
+        "abs_error_pct": 5.3
+      },
+      {
+        "quarter": "2024-Q4",
+        "actual": 2962.6,
+        "predicted": 2643.5,
+        "error": -319.1,
+        "error_pct": -10.8,
+        "abs_error_pct": 10.8
+      }
+    ],
+    "summary": {
+      "n_quarters": 16,
+      "mae_pct": 9.2,
+      "median_ae_pct": 9.9,
+      "max_error_pct": 14.7,
+      "bias_pct": -8.2,
+      "rmse_meur": 266.8,
+      "direction_accuracy": "10/16",
+      "direction_pct": 62
+    }
   }
 }
