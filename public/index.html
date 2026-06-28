@@ -40,12 +40,16 @@ table{width:100%;border-collapse:collapse;font-size:13px}th{padding:7px 8px;text
     <button class="tab" data-tab="indicators">Indicadores</button>
     <button class="tab" data-tab="validation">Validação</button>
     <button class="tab" data-tab="method">Metodologia</button>
+    <button class="tab" data-tab="references">Referências</button>
+    <button class="tab" data-tab="about">Sobre</button>
   </nav>
   <div id="tab-overview"><div class="card" style="color:var(--muted)">A carregar dados…</div></div>
   <div id="tab-sectors" class="hidden"></div>
   <div id="tab-indicators" class="hidden"></div>
   <div id="tab-validation" class="hidden"></div>
   <div id="tab-method" class="hidden"></div>
+  <div id="tab-references" class="hidden"></div>
+  <div id="tab-about" class="hidden"></div>
   <footer>
     <div style="width:100%">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
@@ -77,6 +81,8 @@ function dwc(v){return v>1.5?'var(--teal)':v>.8?'var(--gold)':'var(--accent)'}
 document.getElementById('nav-tabs').addEventListener('click',function(e){if(!e.target.matches('.tab'))return;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));e.target.classList.add('active');document.querySelectorAll('[id^="tab-"]').forEach(el=>el.classList.add('hidden'));document.getElementById('tab-'+e.target.dataset.tab).classList.remove('hidden');setTimeout(()=>Object.values(allCharts).forEach(c=>c.resize()),50)});
 
 fetch('./data.json').then(r=>{if(!r.ok)throw new Error('data.json: HTTP '+r.status);return r.json()}).then(d=>{document.getElementById('updated-date').textContent=d.updated;try{buildOverview(d)}catch(e){document.getElementById('tab-overview').innerHTML='<div class="card" style="color:var(--accent)"><h3>Erro no Nowcast</h3><pre style="margin-top:8px;font-size:12px;white-space:pre-wrap">'+e.message+'\n'+e.stack+'</pre></div>'};try{buildSectors(d)}catch(e){document.getElementById('tab-sectors').innerHTML='<div class="card" style="color:var(--accent)">Erro: '+e.message+'</div>'};try{buildIndicators(d)}catch(e){};try{buildValidation(d)}catch(e){};try{buildMethod()}catch(e){}}).catch(err=>{document.getElementById('tab-overview').innerHTML='<div class="card" style="color:var(--accent)"><h3>Erro</h3><p class="mono" style="margin-top:8px;font-size:13px">'+err.message+'</p></div>'});
+try{buildReferences()}catch(e){}
+try{buildAbout()}catch(e){}
 
 function buildOverview(d){
   const nc=d.nowcast,sec=d.sectors,diag=d.diagnostics,ss=Object.entries(sec).sort((a,b)=>b[1].point-a[1].point);
@@ -158,6 +164,61 @@ function buildValidation(d){
 }
 
 function buildMethod(){document.getElementById('tab-method').innerHTML=`<div class="card fade"><h3 class="serif" style="font-size:22px;margin-bottom:16px">Metodologia</h3><div style="font-size:14px;color:var(--muted);line-height:1.8;max-width:720px"><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">1. Desagregação Temporal</h4><p>O VAB anual por setor (INE 0014109 × 0014113) é desagregado para frequência trimestral usando o método de Chow-Lin (1971). Cada setor utiliza um interpolador de alta frequência apropriado: dormidas para turismo e consultoria, transações imobiliárias para o setor imobiliário, licenças para construção, e tendência linear para a administração pública.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">2. Equações Ponte</h4><p>Regressões Ridge regularizadas mapeiam indicadores trimestrais para o VAB setorial trimestral. O setor 304 (40% do VAB) utiliza dormidas, RevPAR e quota de mercado AL. O setor 307 utiliza o valor das transações imobiliárias. O setor 308 utiliza proxies de turismo (r=0,93 com o crescimento do VAB total). Os setores 309 e restantes utilizam modelos de tendência.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">3. Agregação</h4><p>As previsões setoriais são somadas para produzir o VAB agregado. O PIB é estimado como VAB × 1,08 (rácio histórico de impostos sobre produtos). Os intervalos de confiança assumem erros setoriais independentes.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">4. Distinção Dados vs. Previsão</h4><p><strong style="color:#2563EB">Dados observados (2017–2024):</strong> VAB trimestral estimado por Chow-Lin a partir de dados anuais do INE. Consistentes com as contas regionais publicadas.</p><p><strong style="color:#D4553A">Previsão do modelo (2025–2026):</strong> Estimativas das equações ponte usando indicadores mensais/trimestrais. O VAB anual de 2025 ainda não foi publicado pelo INE.</p><h4 style="font-weight:600;color:var(--text);margin-top:20px;margin-bottom:6px;font-size:15px">5. Limitações</h4><p>O setor da construção tem R²adj baixo (0,28). O VAB imobiliário inclui rendas imputadas (~70% do setor). Durbin-Watson baixo nos setores com tendência. Quotas setoriais de 2024 extrapoladas de 2023. Viés negativo de ~8% na validação retrospetiva.</p><div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--dim)"><p>Modelo: Algarve Nowcast v3 Setorial · Chow-Lin ρ: 0,973–0,990 · Treino: 32 trimestres (2017–2024) · 6 setores + dummy COVID · Ridge α=1,0</p><p style="margin-top:4px">Códigos INE: 0014109, 0014113, 0009808, 0009813, 0012098, 0012786, 0012136, 0000861/62</p></div></div></div>`}
+
+function buildReferences(){
+  const ref=(authors,year,title,venue,url)=>{
+    const t=url?`<a href="${url}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">${title}</a>`:title;
+    return `<li style="margin-bottom:14px;padding-left:14px;border-left:2px solid var(--border)"><span style="color:var(--text);font-weight:500">${authors} (${year}).</span> ${t}. <span style="color:var(--dim);font-style:italic">${venue}</span>.</li>`;
+  };
+  const group=(title,desc,items)=>`<div style="margin-top:26px"><h4 style="font-weight:600;color:var(--text);margin-bottom:4px;font-size:15px">${title}</h4><p style="font-size:12px;color:var(--dim);margin-bottom:12px">${desc}</p><ul style="list-style:none;font-size:13px;color:var(--muted);line-height:1.55">${items.join('')}</ul></div>`;
+
+  const disag=group('Desagregação temporal','Como transformar dados anuais em séries trimestrais, o passo central deste modelo.',[
+    ref('Chow, G. C. &amp; Lin, A.','1971','Best linear unbiased interpolation, distribution, and extrapolation of time series by related series','Review of Economics and Statistics, 53(4), 372-375'),
+    ref('Fernández, R. B.','1981','A methodological note on the estimation of time series','Review of Economics and Statistics, 63(3), 471-476'),
+    ref('Mosley, L., Eckley, I. A. &amp; Gibberd, A.','2022','Sparse temporal disaggregation','Journal of the Royal Statistical Society Series A, 185(4), 2203-2233','https://academic.oup.com/jrsssa/article/185/4/2203/7069420'),
+  ]);
+
+  const regional=group('Nowcasting de PIB regional','Estimativas trimestrais de PIB para regiões sub-nacionais, o caso mais próximo deste projeto.',[
+    ref('Lehmann, R. &amp; Wikman, I.','2025','Quarterly GDP estimates for the German states','Oxford Bulletin of Economics and Statistics, 87(4), 800-814','https://onlinelibrary.wiley.com/doi/10.1111/obes.12653'),
+    ref('Koop, G., McIntyre, S., Mitchell, J. et al.','2025','Nowcasting economic activity in European regions using a mixed-frequency dynamic factor model','International Journal of Forecasting','https://www.sciencedirect.com/science/article/pii/S0169207025000962'),
+    ref('Henzel, S., Lehmann, R. &amp; Wohlrabe, K.','2015','Nowcasting regional GDP: the case of the Free State of Saxony','Review of Economics, 66(1), 71-98'),
+    ref('Claudio, J. C., Heinisch, K. &amp; Holtemöller, O.','2020','Nowcasting East German GDP growth: a MIDAS approach','Empirical Economics, 58, 29-54'),
+  ]);
+
+  const methods=group('Comparação de métodos','Que técnicas funcionam melhor quando os dados são poucos e a economia é pequena e aberta.',[
+    ref('IMF','2025','GDP nowcasting performance of traditional econometric models vs machine-learning algorithms','IMF Working Paper 2025/252','https://www.elibrary.imf.org/view/journals/001/2025/252/article-A001-en.xml'),
+    ref('Glas, A. et al.','2025','Nowcasting economic activity in a small open CESEE economy using mixed frequency data','Empirica (estudo sobre a Eslovénia)','https://link.springer.com/article/10.1007/s10663-025-09656-0'),
+    ref('Proietti, T. et al.','2021','Nowcasting directo vs indirecto: agregação de componentes','International Journal of Forecasting'),
+  ]);
+
+  const hf=group('Dados de alta frequência','Pagamentos com cartão, eletricidade e pesquisas online como sinais em tempo real.',[
+    ref('Felber, L. &amp; Beyeler, S.','2024','Nowcasting economic activity using transaction payments data','SNB Working Paper (dados Worldline, Suíça)'),
+    ref('Kohns, D. &amp; Bhatt, A.','2023','Nowcasting GDP com dados do Google Trends','Working paper'),
+    ref('Composite nowcasting','2025','GDP nowcasting combinando variáveis macroeconómicas e dados de eletricidade em tempo real','PLOS ONE','https://pmc.ncbi.nlm.nih.gov/articles/PMC12148135/'),
+  ]);
+
+  const trackers=group('Casos reais e trackers públicos','Bancos centrais que publicam nowcasts ao vivo. Vale a pena ver como apresentam a incerteza.',[
+    ref('Federal Reserve Bank of Atlanta','—','GDPNow, modelo ponte para o PIB dos EUA atualizado várias vezes por semana','Tracker público','https://www.atlantafed.org/cqer/research/gdpnow'),
+    ref('Federal Reserve Bank of New York','—','Staff Nowcast, baseado num modelo de fatores dinâmicos','Tracker público','https://www.newyorkfed.org/research/policy/nowcast'),
+    ref('Banco Central Europeu','—','Modelo ponte e DFM para a área do euro','Suite de modelos'),
+    ref('Bank of England','—','Suite de modelos para o PIB do Reino Unido (MIDAS, DFM, MF-BVAR)','Suite de modelos'),
+  ]);
+
+  document.getElementById('tab-references').innerHTML=`<div class="card fade"><h3 class="serif" style="font-size:22px;margin-bottom:6px">Referências</h3><p style="font-size:13px;color:var(--muted);max-width:720px;line-height:1.6">Os trabalhos que sustentam este modelo e outros casos de nowcasting, para quem quiser aprofundar. A ideia de estimar uma economia antes dos números oficiais saírem não é nova: os bancos centrais fazem-no há anos. O que é raro é fazê-lo ao nível de uma região.</p><div style="max-width:760px">${disag}${regional}${methods}${hf}${trackers}</div><div style="margin-top:26px;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--dim)">Lista mantida por Joaquim Nascimento. Sugestões de outros casos são bem-vindas via LinkedIn.</div></div>`;
+}
+
+function buildAbout(){
+  document.getElementById('tab-about').innerHTML=`<div class="card fade"><h3 class="serif" style="font-size:22px;margin-bottom:16px">Sobre</h3><div style="font-size:14px;color:var(--muted);line-height:1.85;max-width:680px">
+  <p>Durante o confinamento de 2020 fiquei a olhar para os indicadores económicos com uma pergunta simples na cabeça: porque é que só sabemos como correu um trimestre três ou quatro meses depois de ele acabar?</p>
+  <p style="margin-top:14px">No Algarve a pergunta incomoda ainda mais. A economia vive do turismo e a sazonalidade é enorme, mas os dados que contam essa história já existem quase em tempo real. Os hotéis sabem à segunda-feira como foi o fim de semana. O aeroporto de Faro sabe quantos passageiros aterraram. O INE publica dormidas e receita todos os meses. Faltava juntar tudo e transformar numa estimativa de PIB enquanto o trimestre ainda decorre.</p>
+  <p style="margin-top:14px">Este projeto é essa tentativa. A técnica chama-se nowcasting e os bancos centrais usam-na há anos para acompanhar economias nacionais. O que não existia era uma versão para uma região portuguesa, ao nível NUTS II. Construí uma para o Algarve, com dados oficiais do INE e indicadores de alta frequência, e deixei-a aberta para quem quiser ver como está a região agora, e não daqui a um trimestre.</p>
+  <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+  <p>Chamo-me Joaquim Nascimento. Nasci na Terrugem, em Elvas, no Norte Alentejo, estudei economia no ISEG e vivi dez anos em Inglaterra, onde trabalhei com algumas das maiores marcas do mundo. Estou no Algarve desde 2013.</p>
+  <p style="margin-top:14px">Hoje trabalho com IA todos os dias: fundei startups na área, dou aulas de Negócios Digitais no Mestrado de Gestão, Inovação e Empreendedorismo da Faculdade de Economia da Universidade do Algarve, e presido à Algarve Evolution, o maior ecossistema de inovação no sul de Portugal. Tenho um MBA em Gestão pela Manchester Metropolitan University e uma especialização em IA em Healthcare por Stanford.</p>
+  </div>
+  <div style="margin-top:24px"><a href="https://www.linkedin.com/in/joaquimnascimento/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:var(--text);color:var(--bg);border-radius:4px;text-decoration:none;font-size:12px;font-weight:600"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a></div>
+  </div></div>`;
+}
 </script>
 </body>
 </html>
