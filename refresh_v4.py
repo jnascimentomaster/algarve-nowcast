@@ -71,13 +71,13 @@ _HEADERS = {
     "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
 }
 
-def _fetch(url, timeout=30, tries=3):
+def _fetch(url, timeout=8, tries=1):
     for _ in range(tries):
         try:
             req = urllib.request.Request(url, headers=_HEADERS)
             return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
         except Exception:
-            time.sleep(0.5)
+            time.sleep(0.3)
     return None
 
 
@@ -113,11 +113,10 @@ def fetch_series(code, dim2, extra, periods, label=""):
         for r in ex.map(one, periods):
             if r:
                 res[r[0]] = r[1]
-    # passo de retry para periodos que falharam (rede instavel no INE)
-    for _ in range(2):
-        missing = [p for p in periods if p not in res]
-        if not missing:
-            break
+    # Um unico retry, e so se a maioria falhou (sinal de problema transitorio
+    # de rede, nao de periodos que simplesmente ainda nao existem no INE).
+    missing = [p for p in periods if p not in res]
+    if missing and len(missing) > len(periods) * 0.6:
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             for r in ex.map(one, missing):
                 if r:
@@ -168,20 +167,35 @@ def _load_annual_cache(path):
     return annual
 
 
-def phase1_annual(fetch=True):
+def _split_year(tot, sh):
+    modeled = sum(sh.get(s, 0) for s in ["304", "309", "307", "203", "308"])
+    rec = {"TOT": tot}
+    for s in ["304", "309", "307", "203", "308"]:
+        rec[s] = tot * sh.get(s, 0) / 100
+    rec["REST"] = tot * (100 - modeled) / 100
+    return rec
+
+
+def _save_annual(annual, path):
+    with open(path, "w", newline="") as f:
+        w = csv.writer(f); w.writerow(["year"] + SECTORS + ["TOT"])
+        for y in sorted(annual):
+            w.writerow([y] + [round(annual[y][s], 1) for s in SECTORS + ["TOT"]])
+
+
+def phase1_annual(fetch=True, now_year=2026):
+    """Serie anual de VAB setorial. Incremental: o historico vem da cache,
+    so se vao buscar ao INE os anos recentes (que mudam com atraso anual)."""
     path = f"{DATA_DIR}/sector_gva_annual_1995.csv"
-    if not fetch and os.path.exists(path):
-        return _load_annual_cache(path)
+    cached = _load_annual_cache(path) if os.path.exists(path) else None
+    if not fetch:
+        if cached:
+            return cached
+        raise RuntimeError("--no-fetch mas nao ha cache em " + path)
 
-    print("Fase 1  serie anual 1995-2024")
-    # VAB total a precos correntes (NUTS III Algarve = 150)
-    tot_raw = fetch_series("0014113", "150", "&Dim3=TOT",
-                           [f"S7A{y}" for y in range(1995, 2025)], "VAB total")
-    gva_tot = {int(p[3:7]): v for p, v in tot_raw.items()}
+    print("Fase 1  serie anual")
+    rec_years = list(range(now_year - 2, now_year + 1))   # anos recentes a verificar
 
-    # Quotas setoriais A10 (Dim2=15), 1995-2023
-    shares = {}
-    import concurrent.futures
     def pull_shares(y):
         d = _fetch(f"{BASE}?op=2&varcd=0014109&Dim1=S7A{y}&Dim2=15&lang=EN")
         sh = {}
@@ -190,40 +204,47 @@ def phase1_annual(fetch=True):
                 for v in vals:
                     if v.get("valor") and v.get("dim_3"):
                         sh[v["dim_3"]] = float(v["valor"].replace(",", "."))
-        return y, sh
+        return sh
+
+    if cached:
+        # incremental: so os anos recentes, e so se houver total E quotas validas
+        # (anos com total publicado mas quotas ainda em falta mantem a cache)
+        print("  incremental: a verificar anos recentes")
+        tot_raw = fetch_series("0014113", "150", "&Dim3=TOT",
+                               [f"S7A{y}" for y in rec_years], "")
+        annual = dict(cached)
+        updated = 0
+        for y in rec_years:
+            tot = tot_raw.get(f"S7A{y}")
+            sh = pull_shares(y)
+            if tot is not None and sh:
+                annual[y] = _split_year(tot, sh)
+                updated += 1
+        if updated:
+            _save_annual(annual, path)
+        print(f"  {len(annual)} anos ({updated} atualizados, resto da cache)")
+        return annual
+
+    # ---- primeira vez, sem cache: pull completo 1995-2024 ----
+    print("  pull completo 1995-2024")
+    tot_raw = fetch_series("0014113", "150", "&Dim3=TOT",
+                           [f"S7A{y}" for y in range(1995, 2025)], "VAB total")
+    gva_tot = {int(p[3:7]): v for p, v in tot_raw.items()}
+    shares = {}
+    import concurrent.futures
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
-        for y, sh in ex.map(pull_shares, range(1995, 2024)):
+        for y, sh in zip(range(1995, 2024), ex.map(pull_shares, range(1995, 2024))):
             if sh:
                 shares[y] = sh
-
-    # Se o INE nao respondeu (ex. bloqueio de IP em CI), cai para a cache do repo
     if not gva_tot or not shares:
-        if os.path.exists(path):
-            print("  INE nao respondeu, a usar cache commitada do repositorio")
-            return _load_annual_cache(path)
-        raise RuntimeError("INE nao respondeu e nao ha cache em " + path)
-
+        raise RuntimeError("INE nao respondeu no pull inicial e nao ha cache")
     if 2023 in shares:
-        shares[2024] = dict(shares[2023])   # 2024 ainda sem quotas, herda 2023
-
-    annual = {}
-    for y in sorted(gva_tot):
-        if y not in shares:
-            continue
-        tot, sh = gva_tot[y], shares[y]
-        modeled = sum(sh.get(s, 0) for s in ["304", "309", "307", "203", "308"])
-        rec = {"TOT": tot}
-        for s in ["304", "309", "307", "203", "308"]:
-            rec[s] = tot * sh.get(s, 0) / 100
-        rec["REST"] = tot * (100 - modeled) / 100
-        annual[y] = rec
-
+        shares[2024] = dict(shares[2023])
+    annual = {y: _split_year(gva_tot[y], shares[y])
+              for y in sorted(gva_tot) if y in shares}
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(path, "w", newline="") as f:
-        w = csv.writer(f); w.writerow(["year"] + SECTORS + ["TOT"])
-        for y in sorted(annual):
-            w.writerow([y] + [round(annual[y][s], 1) for s in SECTORS + ["TOT"]])
-    print(f"  {len(annual)} anos, agregado bate com INE por construcao")
+    _save_annual(annual, path)
+    print(f"  {len(annual)} anos")
     return annual
 
 
@@ -303,36 +324,80 @@ def phase2_disaggregate(annual, ind, fetch=True):
 # ----------------------------------------------------------------------------
 # Indicadores (mensais e trimestrais)
 # ----------------------------------------------------------------------------
+def _fetch_monthly(code, dim2, extra, periods, label):
+    """Devolve {YYYY-MM: valor} para uma lista de periodos S3A."""
+    return {s3a_to_ym(p): v for p, v in fetch_series(code, dim2, extra, periods, label).items()}
+
+
 def load_indicators(fetch=True, now_year=2026):
-    """Devolve dict de indicadores em frequencia trimestral, mais trend."""
+    """Devolve indicadores em frequencia trimestral, mais trend.
+
+    Estrategia: a serie historica (2004+) nao muda e vive na cache do repo.
+    Quando ha cache, so se vai ao INE buscar a janela recente (ano anterior e
+    ano corrente), umas dezenas de chamadas em vez de centenas. Se o INE nao
+    responder, fica-se com a cache. Sem cache (primeira vez), faz o pull completo.
+    """
     print("Indicadores")
     cache = f"{DATA_DIR}/indicators_cache.json"
-    if not fetch and os.path.exists(cache):
-        raw = json.load(open(cache))
+    cached = json.load(open(cache)) if os.path.exists(cache) else None
+
+    if not fetch:
+        if cached:
+            raw = cached
+        else:
+            raise RuntimeError("--no-fetch mas nao ha cache em " + cache)
+
+    elif cached:
+        # ---- modo incremental: so a janela recente ----
+        print("  incremental: a buscar so periodos recentes ao INE")
+        raw = {k: dict(v) for k, v in cached.items()}
+        now_ym = time.strftime("%Y%m")
+        rm = [p for p in months(now_year - 1, now_year) if p[3:9] <= now_ym]  # nao pedir meses futuros
+        rq = quarters(now_year - 1, now_year)        # ~8 trimestres recentes
+        emb = _fetch_monthly("0000861", "LPFR", "&Dim3=T&Dim4=T", rm, "")
+        dis = _fetch_monthly("0000862", "LPFR", "&Dim3=T&Dim4=T", rm, "")
+        for ym in set(emb) | set(dis):
+            raw["airport_m"][ym] = emb.get(ym, 0) + dis.get(ym, 0)
+        for ym, v in _fetch_monthly("0011748", "PT", "&Dim3=T", rm, "").items():
+            raw["cost_m"][ym] = v
+        for ym, v in _fetch_monthly("0009813", "15", "&Dim3=T", rm, "").items():
+            raw["revenue_m"][ym] = v
+        for p, v in fetch_series("0012136", "15", "&Dim3=T", rq, "").items():
+            raw["unemp"][s5a_to_q(p)] = v
+        for p, v in fetch_series("0012134", "15", "&Dim3=B-F", rq, "").items():
+            raw["wages"][s5a_to_q(p)] = v
+        for p, v in fetch_series("0012786", "15", "&Dim3=H1&Dim4=T&Dim5=T", rq, "").items():
+            raw["htx"][s5a_to_q(p)] = v
+        n_new = len(raw["airport_m"]) - len(cached["airport_m"])
+        print(f"  {max(0, n_new)} meses novos de aeroporto; cache atualizada")
+        json.dump(raw, open(cache, "w"))
+
     else:
+        # ---- primeira vez, sem cache: pull completo ----
         os.makedirs(DATA_DIR, exist_ok=True)
-        raw = {}
-        # mensais
-        emb = fetch_series("0000861", "LPFR", "&Dim3=T&Dim4=T", months(2004, now_year), "aeroporto emb")
-        dis = fetch_series("0000862", "LPFR", "&Dim3=T&Dim4=T", months(2004, now_year), "aeroporto dis")
-        airport = {s3a_to_ym(p): emb.get(p, 0) + dis.get(p, 0) for p in set(emb) | set(dis)}
-        cost = {s3a_to_ym(p): v for p, v in fetch_series("0011748", "PT", "&Dim3=T", months(2000, now_year), "custo").items()}
-        revenue = {s3a_to_ym(p): v for p, v in fetch_series("0009813", "15", "&Dim3=T", months(2017, now_year), "receita").items()}
-        # trimestrais
+        emb = _fetch_monthly("0000861", "LPFR", "&Dim3=T&Dim4=T", months(2004, now_year), "aeroporto emb")
+        dis = _fetch_monthly("0000862", "LPFR", "&Dim3=T&Dim4=T", months(2004, now_year), "aeroporto dis")
+        airport = {ym: emb.get(ym, 0) + dis.get(ym, 0) for ym in set(emb) | set(dis)}
+        cost = _fetch_monthly("0011748", "PT", "&Dim3=T", months(2000, now_year), "custo")
+        revenue = _fetch_monthly("0009813", "15", "&Dim3=T", months(2017, now_year), "receita")
         unemp = {s5a_to_q(p): v for p, v in fetch_series("0012136", "15", "&Dim3=T", quarters(2011, now_year), "desemprego").items()}
         wages = {s5a_to_q(p): v for p, v in fetch_series("0012134", "15", "&Dim3=B-F", quarters(2011, now_year), "salarios").items()}
         htx = {s5a_to_q(p): v for p, v in fetch_series("0012786", "15", "&Dim3=H1&Dim4=T&Dim5=T", quarters(2009, now_year), "transacoes").items()}
+        if not airport or not revenue or not unemp:
+            raise RuntimeError("INE nao respondeu no pull inicial e nao ha cache")
         raw = {"airport_m": airport, "cost_m": cost, "revenue_m": revenue,
                "unemp": unemp, "wages": wages, "htx": htx}
-        # Se o INE nao respondeu, cai para a cache commitada
-        if not airport or not revenue or not unemp:
-            if os.path.exists(cache):
-                print("  INE nao respondeu, a usar cache commitada do repositorio")
-                raw = json.load(open(cache))
-            else:
-                raise RuntimeError("INE nao respondeu e nao ha cache em " + cache)
-        else:
-            json.dump(raw, open(cache, "w"))
+        json.dump(raw, open(cache, "w"))
+
+    ind = {
+        "airport_q": monthly_to_quarterly(raw["airport_m"], "sum"),
+        "cost_q":    monthly_to_quarterly(raw["cost_m"], "mean"),
+        "revenue":   monthly_to_quarterly(raw["revenue_m"], "sum"),
+        "unemp":     raw["unemp"], "wages": raw["wages"], "htx": raw["htx"],
+    }
+    allq = [f"{y}-Q{q}" for y in range(2004, now_year + 1) for q in range(1, 5)]
+    ind["trend"] = {q: i for i, q in enumerate(allq)}
+    return ind
 
     ind = {
         "airport_q": monthly_to_quarterly(raw["airport_m"], "sum"),
@@ -452,7 +517,7 @@ def carry_forward(ind, now_q):
 # ----------------------------------------------------------------------------
 def run(fetch=True, now_q="2026-Q1"):
     now_year = int(now_q[:4])
-    annual = phase1_annual(fetch)
+    annual = phase1_annual(fetch, now_year)
     ind = load_indicators(fetch, now_year)
     gva = phase2_disaggregate(annual, ind, fetch)
     carry_forward(ind, now_q)
