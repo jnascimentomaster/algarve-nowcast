@@ -63,12 +63,21 @@ GDP_FACTOR = 1.08   # PIB = VAB x (1 + impostos liquidos sobre produtos)
 # ----------------------------------------------------------------------------
 # Fetch INE (paralelo, com retries)
 # ----------------------------------------------------------------------------
-def _fetch(url, timeout=12, tries=2):
+_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/124.0 Safari/537.36"),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
+}
+
+def _fetch(url, timeout=30, tries=3):
     for _ in range(tries):
         try:
-            return json.loads(urllib.request.urlopen(url, timeout=timeout).read())
+            req = urllib.request.Request(url, headers=_HEADERS)
+            return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
         except Exception:
-            time.sleep(0.3)
+            time.sleep(0.5)
     return None
 
 
@@ -151,14 +160,18 @@ def monthly_to_quarterly(md, agg="sum"):
 # ----------------------------------------------------------------------------
 # Fase 1  serie anual de VAB setorial 1995-2024
 # ----------------------------------------------------------------------------
+def _load_annual_cache(path):
+    annual = {}
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            annual[int(row["year"])] = {s: float(row[s]) for s in SECTORS + ["TOT"]}
+    return annual
+
+
 def phase1_annual(fetch=True):
     path = f"{DATA_DIR}/sector_gva_annual_1995.csv"
     if not fetch and os.path.exists(path):
-        annual = {}
-        with open(path) as f:
-            for row in csv.DictReader(f):
-                annual[int(row["year"])] = {s: float(row[s]) for s in SECTORS + ["TOT"]}
-        return annual
+        return _load_annual_cache(path)
 
     print("Fase 1  serie anual 1995-2024")
     # VAB total a precos correntes (NUTS III Algarve = 150)
@@ -182,7 +195,16 @@ def phase1_annual(fetch=True):
         for y, sh in ex.map(pull_shares, range(1995, 2024)):
             if sh:
                 shares[y] = sh
-    shares[2024] = dict(shares[2023])   # 2024 ainda sem quotas, herda 2023
+
+    # Se o INE nao respondeu (ex. bloqueio de IP em CI), cai para a cache do repo
+    if not gva_tot or not shares:
+        if os.path.exists(path):
+            print("  INE nao respondeu, a usar cache commitada do repositorio")
+            return _load_annual_cache(path)
+        raise RuntimeError("INE nao respondeu e nao ha cache em " + path)
+
+    if 2023 in shares:
+        shares[2024] = dict(shares[2023])   # 2024 ainda sem quotas, herda 2023
 
     annual = {}
     for y in sorted(gva_tot):
@@ -302,7 +324,15 @@ def load_indicators(fetch=True, now_year=2026):
         htx = {s5a_to_q(p): v for p, v in fetch_series("0012786", "15", "&Dim3=H1&Dim4=T&Dim5=T", quarters(2009, now_year), "transacoes").items()}
         raw = {"airport_m": airport, "cost_m": cost, "revenue_m": revenue,
                "unemp": unemp, "wages": wages, "htx": htx}
-        json.dump(raw, open(cache, "w"))
+        # Se o INE nao respondeu, cai para a cache commitada
+        if not airport or not revenue or not unemp:
+            if os.path.exists(cache):
+                print("  INE nao respondeu, a usar cache commitada do repositorio")
+                raw = json.load(open(cache))
+            else:
+                raise RuntimeError("INE nao respondeu e nao ha cache em " + cache)
+        else:
+            json.dump(raw, open(cache, "w"))
 
     ind = {
         "airport_q": monthly_to_quarterly(raw["airport_m"], "sum"),
