@@ -381,8 +381,9 @@ def predict_sector(gva, ind, s, q, cut=None):
 
 
 def backtest(gva, ind, y0=2019, y1=2024):
-    """Janela expansivel out-of-sample, exclui COVID. Devolve vies e MAE."""
-    errs = []
+    """Janela expansivel out-of-sample, exclui COVID.
+    Devolve (vies, MAE, n, detalhe por trimestre)."""
+    errs, detail = [], []
     for ty in range(y0, y1 + 1):
         for q in range(1, 5):
             tq = f"{ty}-Q{q}"
@@ -392,9 +393,18 @@ def backtest(gva, ind, y0=2019, y1=2024):
             if any(v is None for v in pr.values()):
                 continue
             actual = sum(gva[s][tq] for s in SECTORS)
-            errs.append((sum(pr.values()) - actual) / actual * 100)
+            predicted = sum(pr.values())
+            errs.append((predicted - actual) / actual * 100)
+            detail.append({"quarter": tq, "actual": round(actual, 1),
+                           "predicted": round(predicted, 1),
+                           "error": round(predicted - actual, 1),
+                           "error_pct": round((predicted - actual) / actual * 100, 1)})
     errs = np.array(errs)
-    return float(np.mean(errs)), float(np.mean(np.abs(errs))), len(errs)
+    rmse_meur = float(np.sqrt(np.mean([(d["predicted"] - d["actual"]) ** 2
+                                       for d in detail]))) if detail else 0.0
+    bias = float(np.mean(errs)) if len(errs) else 0.0
+    mae = float(np.mean(np.abs(errs))) if len(errs) else 0.0
+    return bias, mae, len(errs), detail, rmse_meur
 
 
 def carry_forward(ind, now_q):
@@ -418,7 +428,7 @@ def run(fetch=True, now_q="2026-Q1"):
     carry_forward(ind, now_q)
 
     print("Fase 3 e 4  pontes, nowcast, backtest")
-    bias, mae, n = backtest(gva, ind)
+    bias, mae, n, bt_detail, bt_rmse = backtest(gva, ind)
     corr = 1 / (1 + bias / 100)        # fator de correcao de vies
     py_q = f"{now_year-1}-Q{now_q[-1]}"
 
@@ -434,6 +444,20 @@ def run(fetch=True, now_q="2026-Q1"):
     tot = sum(now[s] for s in SECTORS)
     tp = sum(prev[s] for s in SECTORS)
     rmse_agg = float(np.sqrt(sum(diag[s]["rmse"] ** 2 for s in SECTORS)))
+
+    # Serie agregada para o grafico: observado (soma de setores) + previsao 2025-2026
+    gva_quarterly = {}
+    for q in sorted(gva["304"]):
+        if q >= "2017-Q1":
+            gva_quarterly[q] = {"type": "actual",
+                                "value": round(sum(gva[s][q] for s in SECTORS), 1)}
+    fc_quarters = [f"{y}-Q{q}" for y in range(DISAGG_END + 1, now_year) for q in range(1, 5)]
+    fc_quarters += [f"{now_year}-Q{q}" for q in range(1, int(now_q[-1]) + 1)]
+    for q in fc_quarters:
+        vals = [predict_sector(gva, ind, s, q) for s in SECTORS]
+        if all(v is not None for v in vals):
+            gva_quarterly[q] = {"type": "forecast",
+                                "value": round(sum(vals) * corr, 1)}
 
     data = {
         "updated": time.strftime("%Y-%m-%d"),
@@ -459,9 +483,11 @@ def run(fetch=True, now_q="2026-Q1"):
         "diagnostics": {s: {**diag[s], "dw": None} for s in SECTORS},
         "validation": {
             "mae_pct": round(mae, 1), "bias_pct": round(bias, 1),
-            "n_quarters": n,
+            "rmse_meur": round(bt_rmse, 1), "n_quarters": n,
             "method": "Janela expansivel out-of-sample 2019-2024, exclui COVID",
+            "detail": bt_detail,
         },
+        "gva_quarterly": gva_quarterly,
         "sector_quarterly_gva": {
             s: {q: round(gva[s][q], 1) for q in sorted(gva[s])} for s in SECTORS},
         "indicators": {
