@@ -1,5 +1,5 @@
 {
- "updated": "2026-07-06",
+ "updated": "2026-07-13",
  "nowcast_quarter": "2026-Q1",
  "version": "Algarve Nowcast v4 Setorial",
  "aggregate": {
@@ -18,8 +18,8 @@
    "point": 665.1,
    "point_corrected": 724.9,
    "weight_pct": 27.8,
-   "prev_year": 645.1,
-   "yoy_pct": 3.1,
+   "prev_year": 645.8,
+   "yoy_pct": 3.0,
    "prev_year_q": "2025-Q1",
    "name": "Comercio e Turismo"
   },
@@ -54,8 +54,8 @@
    "point": 123.9,
    "point_corrected": 135.0,
    "weight_pct": 5.2,
-   "prev_year": 120.0,
-   "yoy_pct": 3.3,
+   "prev_year": 120.1,
+   "yoy_pct": 3.2,
    "prev_year_q": "2025-Q1",
    "name": "Consultoria"
   },
@@ -369,19 +369,19 @@
   },
   "2025-Q1": {
    "type": "forecast",
-   "value": 2528.3
+   "value": 2529.1
   },
   "2025-Q2": {
    "type": "forecast",
-   "value": 3417.2
+   "value": 3421.6
   },
   "2025-Q3": {
    "type": "forecast",
-   "value": 4344.0
+   "value": 4352.3
   },
   "2025-Q4": {
    "type": "forecast",
-   "value": 2882.5
+   "value": 2884.0
   },
   "2026-Q1": {
    "type": "forecast",
@@ -940,10 +940,10 @@
    "2024-Q2": 469435.0,
    "2024-Q3": 847011.0,
    "2024-Q4": 234882.0,
-   "2025-Q1": 140257.0,
-   "2025-Q2": 507601.0,
-   "2025-Q3": 896425.0,
-   "2025-Q4": 258249.0,
+   "2025-Q1": 140615.0,
+   "2025-Q2": 509454.0,
+   "2025-Q3": 899955.0,
+   "2025-Q4": 258858.0,
    "2026-Q1": 151340.0
   },
   "airport": {
