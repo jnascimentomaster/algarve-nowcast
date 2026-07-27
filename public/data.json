@@ -1,16 +1,16 @@
 {
- "updated": "2026-07-20",
+ "updated": "2026-07-27",
  "nowcast_quarter": "2026-Q1",
  "version": "Algarve Nowcast v4 Setorial",
  "aggregate": {
-  "gva_meur": 2393.3,
-  "gva_corrected_meur": 2608.4,
-  "gdp_meur": 2584.8,
-  "gdp_corrected_meur": 2817.0,
-  "yoy_pct": 3.2,
+  "gva_meur": 2392.8,
+  "gva_corrected_meur": 2607.8,
+  "gdp_meur": 2584.3,
+  "gdp_corrected_meur": 2816.4,
+  "yoy_pct": 3.1,
   "rmse_meur": 198.8,
-  "lower_90": 2281.3,
-  "upper_90": 2935.4,
+  "lower_90": 2280.8,
+  "upper_90": 2934.8,
   "bias_correction_pct": -8.2
  },
  "sectors": {
@@ -18,8 +18,8 @@
    "point": 665.1,
    "point_corrected": 724.9,
    "weight_pct": 27.8,
-   "prev_year": 645.1,
-   "yoy_pct": 3.1,
+   "prev_year": 645.8,
+   "yoy_pct": 3.0,
    "prev_year_q": "2025-Q1",
    "name": "Comercio e Turismo"
   },
@@ -42,11 +42,11 @@
    "name": "Imobiliario"
   },
   "203": {
-   "point": 212.9,
-   "point_corrected": 232.0,
+   "point": 212.4,
+   "point_corrected": 231.5,
    "weight_pct": 8.9,
    "prev_year": 195.8,
-   "yoy_pct": 8.7,
+   "yoy_pct": 8.5,
    "prev_year_q": "2025-Q1",
    "name": "Construcao"
   },
@@ -54,8 +54,8 @@
    "point": 123.9,
    "point_corrected": 135.0,
    "weight_pct": 5.2,
-   "prev_year": 120.0,
-   "yoy_pct": 3.3,
+   "prev_year": 120.1,
+   "yoy_pct": 3.2,
    "prev_year_q": "2025-Q1",
    "name": "Consultoria"
   },
@@ -369,23 +369,23 @@
   },
   "2025-Q1": {
    "type": "forecast",
-   "value": 2528.3
+   "value": 2529.1
   },
   "2025-Q2": {
    "type": "forecast",
-   "value": 3417.2
+   "value": 3421.6
   },
   "2025-Q3": {
    "type": "forecast",
-   "value": 4344.0
+   "value": 4352.3
   },
   "2025-Q4": {
    "type": "forecast",
-   "value": 2882.5
+   "value": 2884.0
   },
   "2026-Q1": {
    "type": "forecast",
-   "value": 2608.4
+   "value": 2607.8
   }
  },
  "sector_quarterly_gva": {
@@ -940,10 +940,10 @@
    "2024-Q2": 469435.0,
    "2024-Q3": 847011.0,
    "2024-Q4": 234882.0,
-   "2025-Q1": 140257.0,
-   "2025-Q2": 507601.0,
-   "2025-Q3": 896425.0,
-   "2025-Q4": 258249.0,
+   "2025-Q1": 140615.0,
+   "2025-Q2": 509454.0,
+   "2025-Q3": 899955.0,
+   "2025-Q4": 258858.0,
    "2026-Q1": 151340.0
   },
   "airport": {
@@ -1139,7 +1139,7 @@
    "2025-Q2": 124.9,
    "2025-Q3": 125.9,
    "2025-Q4": 126.9,
-   "2026-Q1": 129.4
+   "2026-Q1": 129.2
   }
  }
 }
