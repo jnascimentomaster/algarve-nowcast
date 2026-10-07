@@ -91,12 +91,33 @@ function buildOverview(d){
   allLabels.forEach(q=>{const e=gvaQ[q];if(e.type==='actual'){actualVals.push(e.value);forecastVals.push(null)}else{if(forecastVals.length>0&&forecastVals[forecastVals.length-1]===null)forecastVals[forecastVals.length-1]=actualVals[actualVals.length-1];actualVals.push(null);forecastVals.push(e.value)}});
   const bias=ag.bias_correction_pct, yoy=ag.yoy_pct;
   const top=ss[0];
+  const nq=d.nowcast_quarter, fl=d.flash||null, lc=fl&&fl.last_complete?fl.last_complete:null;
+  const MES={'01':'jan','02':'fev','03':'mar','04':'abr','05':'mai','06':'jun','07':'jul','08':'ago','09':'set','10':'out','11':'nov','12':'dez'};
+  const mes=ym=>MES[ym.slice(5)]+' '+ym.slice(0,4);
+  const NOMEIN={unemp:'desemprego',wages:'salários',htx:'transações imobiliárias',revenue:'receita turística',cost:'índice de custos'};
+  const carried=Object.entries(d.inputs_carried_forward||{});
+  const sgn=v=>(v>0?'+':'')+v;
+  // PIB dos últimos 4 trimestres (soma): o x4 de um só trimestre exagera num trimestre de época alta
+  const last4=allLabels.slice(-4), v4=last4.map(q=>gvaQ[q]&&gvaQ[q].value);
+  const pib4=v4.length===4&&v4.every(v=>typeof v==='number')?v4.reduce((a,b)=>a+b,0)*1.08:null;
+  const flashBanner=fl?`<div class="card fade" style="border-left:4px solid var(--gold);margin-bottom:14px">
+    <h3 style="font-size:15px;font-weight:600;margin-bottom:8px">Estimativa antecipada · ${nq}</h3>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7">O INE ainda não publicou todos os dados de ${nq}. Esta estimativa usa o que já existe e completa o resto, por isso é menos firme do que a de um trimestre completo.</p>
+    <ul style="font-size:13px;color:var(--muted);line-height:1.7;margin:8px 0 0 18px">
+      <li><strong>Receita turística:</strong> ${fl.months_observed.revenue.map(mes).join(' e ')} observados; o trimestre completo estima-se pela quota habitual desses meses (${fl.estimated.revenue_yoy_pct==null?'':sgn(fl.estimated.revenue_yoy_pct)+'% face a '+(top?.[1]?.prev_year_q||'ano anterior')}).</li>
+      <li><strong>Índice de custos de construção:</strong> ${fl.months_observed.cost.map(mes).join(' e ')} observado; os meses seguintes prolongam a tendência recente.</li>
+      ${carried.length?`<li><strong>Herdado do ano anterior:</strong> ${carried.map(([k,v])=>(NOMEIN[k]||k)+' ('+v+')').join(', ')}.</li>`:''}
+    </ul>
+    <p style="font-size:12px;color:var(--dim);margin-top:8px;line-height:1.6">Em ${fl.validation.n} trimestres passados, este atalho ficou em média a ${fl.validation.mae_pct}% do resultado com dados completos (pior caso ${Math.abs(fl.validation.worst_pct)}%), e o intervalo de 90% já inclui esse risco. Mede o custo dos dados em falta, não a exatidão face ao valor real.</p>
+    ${lc?`<p style="font-size:13px;color:var(--text);margin-top:10px;padding-top:10px;border-top:1px solid #E2DCD4">Último trimestre completo, <strong>${lc.quarter}</strong>: VAB corrigido <strong>${fmt(lc.gva_corrected_meur)}</strong>, PIB corrigido <strong>${fmt(lc.gdp_corrected_meur)}</strong>, <strong>${sgn(lc.yoy_pct)}%</strong> em termos homólogos.</p>`:''}
+  </div>`:'';
 
   document.getElementById('tab-overview').innerHTML=`
+  ${flashBanner}
   <div class="kpi-grid fade">
-    <div class="card kpi-main"><div class="kpi-label">Estimativa VAB ${d.nowcast_quarter}</div><div class="kpi-value serif">${fmt(ag.gva_corrected_meur)}</div><div class="kpi-sub mono">IC 90%: [${fmt(ag.lower_90)} – ${fmt(ag.upper_90)}]</div><div class="kpi-sub">corrigida de viés · bruta ${fmt(ag.gva_meur)}</div></div>
+    <div class="card kpi-main"><div class="kpi-label">Estimativa VAB ${nq}${fl?' (antecipada)':''}</div><div class="kpi-value serif">${fmt(ag.gva_corrected_meur)}</div><div class="kpi-sub mono">IC 90%: [${fmt(ag.lower_90)} – ${fmt(ag.upper_90)}]</div><div class="kpi-sub">corrigida de viés · bruta ${fmt(ag.gva_meur)}</div></div>
     <div class="card"><div class="kpi-label">Variação Homóloga</div><div class="mono" style="font-size:26px;margin-top:10px;font-weight:700;color:${yoy>0?'var(--teal)':'var(--accent)'}">${yoy>0?'+':''}${yoy}%</div><div class="kpi-sub">vs ${top?.[1]?.prev_year_q||'ano anterior'}</div></div>
-    <div class="card"><div class="kpi-label">PIB Anualizado</div><div class="mono" style="font-size:26px;margin-top:10px;font-weight:700">€${(ag.gdp_corrected_meur*4/1000).toFixed(1)}B</div><div class="kpi-sub">VAB × 1,08 × 4</div></div>
+    <div class="card"><div class="kpi-label">${pib4?'PIB, 4 trimestres':'PIB Anualizado'}</div><div class="mono" style="font-size:26px;margin-top:10px;font-weight:700">€${((pib4||ag.gdp_corrected_meur*4)/1000).toFixed(1)}B</div><div class="kpi-sub">${pib4?`${last4[0]} a ${nq} · VAB corrigido × 1,08`:'VAB × 1,08 × 4'}</div></div>
   </div>
 
   <div class="card fade"><h3 style="font-size:14px;font-weight:600;margin-bottom:4px">VAB Trimestral — Dados e Previsão</h3><div class="chart-wrap"><canvas id="c-gva"></canvas></div><div class="legend"><span class="legend-item"><span class="legend-line" style="background:#2563EB"></span>Dados observados (Denton híbrido)</span><span class="legend-item"><span class="legend-dash" style="border-color:#D4553A"></span>Previsão do modelo (corrigida)</span></div></div>
@@ -107,6 +128,7 @@ function buildOverview(d){
   <div class="card fade" style="border-left:4px solid var(--blue)">
     <h3 style="font-size:15px;font-weight:600;margin-bottom:10px">Leitura — ${d.nowcast_quarter}</h3>
     <div style="font-size:14px;color:var(--muted);line-height:1.8">
+      ${fl?`<p style="margin-bottom:10px"><strong style="color:var(--gold)">Estimativa antecipada.</strong> Os dados de ${nq} ainda estão incompletos (ver acima), pelo que a leitura que se segue é indicativa e será revista à medida que o INE publica.</p>`:''}
       <p>A economia do Algarve deverá crescer <strong style="color:${yoy>0?'var(--teal)':'var(--accent)'}">${yoy>0?'+':''}${yoy}% em termos homólogos</strong>, atingindo um VAB estimado de <strong style="color:var(--text)">${fmt(ag.gva_corrected_meur)}</strong> (valor corrigido de viés). O setor com maior dinamismo relativo é <strong style="color:${C[top[0]]}">${L[top[0]]}</strong>, com ${top[1].yoy_pct>0?'+':''}${top[1].yoy_pct}%.</p>
       <p style="margin-top:10px">A estimativa central é corrigida do viés de subestimação de ${Math.abs(bias)}% que o modelo regista na validação retrospetiva (ver separador <em>Validação</em>). A estimativa bruta do modelo é ${fmt(ag.gva_meur)}; o valor real tende a ser superior, daí a correção. Esta subestimação é estrutural no nowcasting de VAB nominal a partir de indicadores reais e está documentada na <em>Metodologia</em>.</p>
     </div>
