@@ -14,6 +14,7 @@ Uso:
                                          # (deteta sozinho o ultimo trimestre completo)
   python3 refresh_v4.py --quarter 2026-Q2   # forca o trimestre a estimar
   python3 refresh_v4.py --no-fetch       # reutiliza cache em data/ se existir
+  python3 refresh_v4.py --no-probe       # salta a sonda inicial ao INE (~30 pedidos)
 
 Pensado para correr semanalmente via GitHub Actions. Os dados intermedios
 ficam em data/ para servir de continuidade entre execucoes.
@@ -24,8 +25,8 @@ Convencoes INE confirmadas:
   base 2021 / NUTS 2024, serie consistente desde 1995 (sem splicing manual)
 """
 
-import json, csv, time, urllib.request, argparse, os, sys
-from collections import defaultdict
+import json, csv, time, urllib.request, urllib.error, argparse, os, sys, threading, atexit
+from collections import defaultdict, Counter
 import numpy as np
 import warnings; warnings.filterwarnings("ignore")
 from sklearn.linear_model import Ridge
@@ -84,14 +85,111 @@ _HEADERS = {
     "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.8",
 }
 
+# Diagnostico do INE: o que falha, e quanto tempo cada pedido demora. Nao altera
+# o que o pipeline faz, so regista (ver ine_report e ine_probe).
+_ERR = Counter()        # classe de erro -> n
+_ERR_T = []             # duracao (s) dos pedidos falhados
+_OK_T = []              # duracao (s) dos pedidos bem sucedidos
+_LOCK = threading.Lock()
+
+def _err_name(e):
+    """Classe curta do erro, para contar (sem URLs nem valores)."""
+    if isinstance(e, urllib.error.HTTPError):
+        ra = e.headers.get("Retry-After") if e.headers else None
+        return f"HTTP {e.code}" + (f" (Retry-After {ra})" if ra else "")
+    if isinstance(e, urllib.error.URLError):
+        return "URLError: " + str(e.reason)[:60]
+    if isinstance(e, ValueError):
+        return "resposta nao e JSON"        # p.ex. pagina de erro com HTTP 200
+    return f"{type(e).__name__}: {str(e)[:60]}"
+
+
 def _fetch(url, timeout=8, tries=1):
     for _ in range(tries):
+        t0 = time.time()
         try:
             req = urllib.request.Request(url, headers=_HEADERS)
-            return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
-        except Exception:
+            out = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+            with _LOCK:
+                _OK_T.append(time.time() - t0)
+            return out
+        except Exception as e:
+            with _LOCK:
+                _ERR[_err_name(e)] += 1
+                _ERR_T.append(time.time() - t0)
             time.sleep(0.3)
     return None
+
+
+def ine_report():
+    """Resumo dos pedidos ao INE nesta execucao (corre no fim, mesmo se houver erro)."""
+    n_ok, n_err = len(_OK_T), len(_ERR_T)
+    if not (n_ok or n_err):
+        return
+    q = lambda v, p: sorted(v)[min(len(v) - 1, int(p * len(v)))] if v else 0.0
+    print(f"INE, resumo dos pedidos: {n_ok} ok, {n_err} falhados")
+    if _OK_T:
+        print(f"  ok: latencia media {np.mean(_OK_T):.1f}s, p90 {q(_OK_T, .9):.1f}s, "
+              f"max {max(_OK_T):.1f}s")
+    if _ERR_T:
+        print(f"  falhas: duracao media {np.mean(_ERR_T):.1f}s, max {max(_ERR_T):.1f}s")
+        for k, v in _ERR.most_common():
+            print(f"    {v:4d} x {k}")
+
+
+def _probe_one(p):
+    """Um pedido de teste (receita, Algarve) a um mes ja publicado. (ok, segundos, erro)."""
+    url = f"{BASE}?op=2&varcd=0009813&Dim1={p}&Dim2=15&Dim3=T&lang=EN"
+    t0 = time.time()
+    try:
+        req = urllib.request.Request(url, headers=_HEADERS)
+        json.loads(urllib.request.urlopen(req, timeout=20).read())
+        return (True, time.time() - t0, "")
+    except Exception as e:
+        return (False, time.time() - t0, _err_name(e))
+
+
+def _probe_summary(label, res):
+    ok = [t for good, t, _ in res if good]
+    errs = Counter(e for good, _, e in res if not good)
+    slow = sum(t > 8 for t in ok)                 # o pipeline desiste aos 8s
+    s = f"  {label}: {len(ok)}/{len(res)} ok"
+    if ok:
+        s += f", latencia media {np.mean(ok):.1f}s, max {max(ok):.1f}s"
+        if slow:
+            s += f" ({slow} acima de 8s)"
+    print(s)
+    for k, v in errs.most_common():
+        print(f"      {v} x {k}")
+
+
+def ine_probe():
+    """Sonda curta ao INE antes de puxar dados: ~30 pedidos a meses ja publicados.
+
+    Tres testes seguidos, para separar as causas possiveis das falhas:
+      A  6 pedidos sequenciais com pausa de 0.5s
+      B  16 pedidos em paralelo (o que o pipeline faz)
+      C  6 pedidos sequenciais com pausa de 0.5s, logo a seguir a B
+    A falha e B ok -> INE inacessivel desta maquina. A ok e B falha -> limite de
+    pedidos em paralelo. C falha depois de B -> o INE bloqueia durante um tempo.
+    Tudo ok -> o INE esta bem e o problema esta noutro lado.
+    """
+    import concurrent.futures
+    print(f"Sonda INE ({time.strftime('%H:%M:%S', time.gmtime())} UTC)")
+    seq_a = [f"S3A2025{m:02d}" for m in range(1, 7)]
+    seq_c = [f"S3A2025{m:02d}" for m in range(7, 13)]
+    par = [f"S3A2024{m:02d}" for m in range(1, 13)] + [f"S3A2023{m:02d}" for m in range(1, 5)]
+    res = []
+    for p in seq_a:
+        res.append(_probe_one(p)); time.sleep(0.5)
+    _probe_summary("A sequencial (pausa 0.5s)", res)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+        res = list(ex.map(_probe_one, par))
+    _probe_summary("B 16 em paralelo", res)
+    res = []
+    for p in seq_c:
+        res.append(_probe_one(p)); time.sleep(0.5)
+    _probe_summary("C sequencial apos B", res)
 
 
 def _parse(d, want_dim3=None):
@@ -135,17 +233,23 @@ def fetch_series(code, dim2, extra, periods, label=""):
             break
         if attempt:
             time.sleep(2)
-        retry = []
+        batch, retry = failed, []
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            for p, val, errored in ex.map(one, failed):
+            for p, val, errored in ex.map(one, batch):
                 if val is not None:
                     res[p] = val
                 elif errored:
                     retry.append(p)
         failed = retry
+        # Nenhuma resposta em toda a passagem: o INE esta inacessivel ou a bloquear
+        # esta maquina. Repetir so gasta tempo (cada falha custa ate 8s).
+        if len(batch) >= 4 and len(failed) == len(batch):
+            print(f"  AVISO {label or code}: nenhuma resposta do INE a {len(batch)} "
+                  f"pedidos, sem mais repeticoes")
+            break
     if failed:
         print(f"  AVISO {label or code}: {len(failed)} periodos sem resposta do INE "
-              f"apos 3 tentativas ({failed[0]} ...)")
+              f"({failed[0]} ...)")
     if label:
         print(f"  {label}: {len(res)}/{len(periods)} periodos")
     return res
@@ -581,10 +685,12 @@ def carry_forward(ind, now_q):
 # ----------------------------------------------------------------------------
 # Pipeline
 # ----------------------------------------------------------------------------
-def run(fetch=True, now_q=None):
+def run(fetch=True, now_q=None, probe=True):
     # now_q=None: o trimestre a estimar e detetado a partir dos dados.
     # Ano a puxar do INE: o corrente, ou o do trimestre pedido se for posterior.
     fetch_year = max(time.localtime().tm_year, int(now_q[:4]) if now_q else 0)
+    if fetch and probe:
+        ine_probe()
     annual = phase1_annual(fetch, fetch_year)
     ind = load_indicators(fetch, fetch_year)
     gva = phase2_disaggregate(annual, ind, fetch)
@@ -703,5 +809,8 @@ if __name__ == "__main__":
                     help="reutiliza cache em data/ em vez de puxar do INE")
     ap.add_argument("--quarter", default=None,
                     help="trimestre a estimar, ex. 2026-Q2 (por omissao, deteta o ultimo completo)")
+    ap.add_argument("--no-probe", action="store_true",
+                    help="nao faz a sonda inicial ao INE (~30 pedidos de teste)")
     args = ap.parse_args()
-    run(fetch=not args.no_fetch, now_q=args.quarter)
+    atexit.register(ine_report)      # resumo dos pedidos ao INE, mesmo se a execucao falhar
+    run(fetch=not args.no_fetch, now_q=args.quarter, probe=not args.no_probe)
