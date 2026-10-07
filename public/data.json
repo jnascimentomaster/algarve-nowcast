@@ -1,6 +1,7 @@
 {
  "updated": "2026-10-07",
- "nowcast_quarter": "2026-Q2",
+ "nowcast_quarter": "2026-Q3",
+ "nowcast_status": "flash",
  "nowcast_quarter_source": "auto",
  "data_through": {
   "revenue": "2026-Q2",
@@ -10,73 +11,77 @@
   "htx": "2026-Q2",
   "cost": "2026-Q2"
  },
- "inputs_carried_forward": {},
+ "inputs_carried_forward": {
+  "unemp": "2025-Q3",
+  "wages": "2025-Q3",
+  "htx": "2025-Q3"
+ },
  "version": "Algarve Nowcast v4 Setorial",
  "aggregate": {
-  "gva_meur": 3265.1,
-  "gva_corrected_meur": 3770.3,
-  "gdp_meur": 3526.3,
-  "gdp_corrected_meur": 4071.9,
-  "yoy_pct": 4.1,
+  "gva_meur": 4168.1,
+  "gva_corrected_meur": 4369.8,
+  "gdp_meur": 4501.5,
+  "gdp_corrected_meur": 4719.4,
+  "yoy_pct": 4.6,
   "rmse_meur": 198.8,
-  "lower_90": 3443.3,
-  "upper_90": 4097.3,
-  "bias_correction_pct": -13.4,
+  "lower_90": 4018.8,
+  "upper_90": 4720.8,
+  "bias_correction_pct": -4.6,
   "bias_correction_pooled_pct": -8.2
  },
  "sectors": {
   "304": {
-   "point": 1377.8,
-   "point_corrected": 1591.0,
-   "weight_pct": 42.2,
-   "prev_year": 1307.8,
-   "yoy_pct": 5.3,
-   "prev_year_q": "2025-Q2",
+   "point": 2109.3,
+   "point_corrected": 2211.4,
+   "weight_pct": 50.6,
+   "prev_year": 2009.3,
+   "yoy_pct": 5.0,
+   "prev_year_q": "2025-Q3",
    "name": "Comercio e Turismo"
   },
   "309": {
-   "point": 454.7,
-   "point_corrected": 525.0,
-   "weight_pct": 13.9,
-   "prev_year": 440.5,
-   "yoy_pct": 3.2,
-   "prev_year_q": "2025-Q2",
+   "point": 459.1,
+   "point_corrected": 481.4,
+   "weight_pct": 11.0,
+   "prev_year": 444.2,
+   "yoy_pct": 3.3,
+   "prev_year_q": "2025-Q3",
    "name": "Administracao Publica"
   },
   "307": {
-   "point": 448.5,
-   "point_corrected": 517.9,
-   "weight_pct": 13.7,
-   "prev_year": 460.2,
-   "yoy_pct": -2.5,
-   "prev_year_q": "2025-Q2",
+   "point": 458.7,
+   "point_corrected": 480.9,
+   "weight_pct": 11.0,
+   "prev_year": 458.9,
+   "yoy_pct": -0.0,
+   "prev_year_q": "2025-Q3",
    "name": "Imobiliario"
   },
   "203": {
-   "point": 224.0,
-   "point_corrected": 258.6,
-   "weight_pct": 6.9,
-   "prev_year": 200.2,
-   "yoy_pct": 11.9,
-   "prev_year_q": "2025-Q2",
+   "point": 230.3,
+   "point_corrected": 241.4,
+   "weight_pct": 5.5,
+   "prev_year": 203.1,
+   "yoy_pct": 13.4,
+   "prev_year_q": "2025-Q3",
    "name": "Construcao"
   },
   "308": {
-   "point": 264.5,
-   "point_corrected": 305.4,
-   "weight_pct": 8.1,
-   "prev_year": 250.7,
-   "yoy_pct": 5.5,
-   "prev_year_q": "2025-Q2",
+   "point": 408.9,
+   "point_corrected": 428.6,
+   "weight_pct": 9.8,
+   "prev_year": 389.1,
+   "yoy_pct": 5.1,
+   "prev_year_q": "2025-Q3",
    "name": "Consultoria"
   },
   "REST": {
-   "point": 495.6,
-   "point_corrected": 572.3,
-   "weight_pct": 15.2,
-   "prev_year": 476.0,
-   "yoy_pct": 4.1,
-   "prev_year_q": "2025-Q2",
+   "point": 501.8,
+   "point_corrected": 526.1,
+   "weight_pct": 12.0,
+   "prev_year": 481.2,
+   "yoy_pct": 4.3,
+   "prev_year_q": "2025-Q3",
    "name": "Outros Setores"
   }
  },
@@ -264,6 +269,50 @@
    }
   ]
  },
+ "flash": {
+  "quarter": "2026-Q3",
+  "last_complete_quarter": "2026-Q2",
+  "months_observed": {
+   "revenue": [
+    "2026-07",
+    "2026-08"
+   ],
+   "cost": [
+    "2026-07"
+   ]
+  },
+  "estimated": {
+   "revenue_quarter": 951842,
+   "revenue_months_missing": 244268,
+   "revenue_yoy_pct": 6.2,
+   "cost_quarter": 135.6
+  },
+  "validation": {
+   "n": 18,
+   "rms_pct": 1.8,
+   "mae_pct": 1.4,
+   "bias_pct": -0.2,
+   "worst_pct": -4.3,
+   "assumed_rms": false,
+   "note": "estimativa so com os meses disponiveis contra a do trimestre completo, mesmo modelo, trimestres passados; mede o custo dos dados em falta, nao a exatidao face ao valor real"
+  },
+  "interval": {
+   "model_half_meur": 327.0,
+   "flash_half_meur": 127.5,
+   "total_half_meur": 351.0
+  },
+  "last_complete": {
+   "quarter": "2026-Q2",
+   "gva_meur": 3265.1,
+   "gva_corrected_meur": 3770.3,
+   "gdp_meur": 3526.3,
+   "gdp_corrected_meur": 4071.9,
+   "yoy_pct": 4.1,
+   "lower_90": 3443.3,
+   "upper_90": 4097.3,
+   "bias_correction_pct": -13.4
+  }
+ },
  "gva_quarterly": {
   "2017-Q1": {
    "type": "actual",
@@ -416,6 +465,10 @@
   "2026-Q2": {
    "type": "forecast",
    "value": 3770.3
+  },
+  "2026-Q3": {
+   "type": "flash",
+   "value": 4369.8
   }
  },
  "sector_quarterly_gva": {
