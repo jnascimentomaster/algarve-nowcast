@@ -1,22 +1,33 @@
 {
- "updated": "2026-10-05",
+ "updated": "2026-10-07",
  "nowcast_quarter": "2026-Q1",
+ "nowcast_quarter_source": "auto",
+ "data_through": {
+  "revenue": "2026-Q1",
+  "airport": "2026-Q1",
+  "unemp": "2026-Q1",
+  "wages": "2026-Q1",
+  "htx": "2026-Q1",
+  "cost": "2026-Q1"
+ },
+ "inputs_carried_forward": {},
  "version": "Algarve Nowcast v4 Setorial",
  "aggregate": {
   "gva_meur": 2392.8,
-  "gva_corrected_meur": 2607.8,
+  "gva_corrected_meur": 2473.5,
   "gdp_meur": 2584.3,
-  "gdp_corrected_meur": 2816.4,
+  "gdp_corrected_meur": 2671.3,
   "yoy_pct": 3.1,
   "rmse_meur": 198.8,
-  "lower_90": 2280.8,
-  "upper_90": 2934.8,
-  "bias_correction_pct": -8.2
+  "lower_90": 2146.5,
+  "upper_90": 2800.5,
+  "bias_correction_pct": -3.3,
+  "bias_correction_pooled_pct": -8.2
  },
  "sectors": {
   "304": {
    "point": 665.1,
-   "point_corrected": 724.9,
+   "point_corrected": 687.5,
    "weight_pct": 27.8,
    "prev_year": 645.8,
    "yoy_pct": 3.0,
@@ -25,7 +36,7 @@
   },
   "309": {
    "point": 457.0,
-   "point_corrected": 498.1,
+   "point_corrected": 472.4,
    "weight_pct": 19.1,
    "prev_year": 445.6,
    "yoy_pct": 2.6,
@@ -34,7 +45,7 @@
   },
   "307": {
    "point": 435.3,
-   "point_corrected": 474.4,
+   "point_corrected": 450.0,
    "weight_pct": 18.2,
    "prev_year": 430.1,
    "yoy_pct": 1.2,
@@ -43,7 +54,7 @@
   },
   "203": {
    "point": 212.4,
-   "point_corrected": 231.5,
+   "point_corrected": 219.5,
    "weight_pct": 8.9,
    "prev_year": 195.8,
    "yoy_pct": 8.5,
@@ -52,7 +63,7 @@
   },
   "308": {
    "point": 123.9,
-   "point_corrected": 135.0,
+   "point_corrected": 128.1,
    "weight_pct": 5.2,
    "prev_year": 120.1,
    "yoy_pct": 3.2,
@@ -61,7 +72,7 @@
   },
   "REST": {
    "point": 499.1,
-   "point_corrected": 543.9,
+   "point_corrected": 515.9,
    "weight_pct": 20.9,
    "prev_year": 483.3,
    "yoy_pct": 3.3,
@@ -134,6 +145,21 @@
  "validation": {
   "mae_pct": 9.6,
   "bias_pct": -8.2,
+  "bias_by_quarter": {
+   "1": -3.3,
+   "2": -13.4,
+   "3": -4.6,
+   "4": -11.8
+  },
+  "n_by_quarter": {
+   "1": 3,
+   "2": 3,
+   "3": 4,
+   "4": 4
+  },
+  "shrinkage_k": 2.0,
+  "mae_loo_pct_pooled": 7.8,
+  "mae_loo_pct_seasonal": 4.3,
   "rmse_meur": 334.8,
   "n_quarters": 14,
   "method": "Janela expansivel out-of-sample 2019-2024, exclui COVID",
@@ -369,23 +395,23 @@
   },
   "2025-Q1": {
    "type": "forecast",
-   "value": 2529.1
+   "value": 2398.8
   },
   "2025-Q2": {
    "type": "forecast",
-   "value": 3421.6
+   "value": 3625.3
   },
   "2025-Q3": {
    "type": "forecast",
-   "value": 4352.3
+   "value": 4186.8
   },
   "2025-Q4": {
    "type": "forecast",
-   "value": 2884.0
+   "value": 2998.5
   },
   "2026-Q1": {
    "type": "forecast",
-   "value": 2607.8
+   "value": 2473.5
   }
  },
  "sector_quarterly_gva": {
@@ -980,10 +1006,10 @@
    "2024-Q3": 3653777.0,
    "2024-Q4": 1829128.0,
    "2025-Q1": 1226685.0,
-   "2025-Q2": 2175101.0,
+   "2025-Q2": 3373627.0,
    "2025-Q3": 3842114.0,
-   "2025-Q4": 1381032.0,
-   "2026-Q1": 1120315.0
+   "2025-Q4": 1912906.0,
+   "2026-Q1": 1255772.0
   },
   "unemp": {
    "2017-Q1": 10.8,
