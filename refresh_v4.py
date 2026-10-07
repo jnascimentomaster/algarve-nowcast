@@ -20,6 +20,10 @@ Uso:
 Pensado para correr semanalmente via GitHub Actions. Os dados intermedios
 ficam em data/ para servir de continuidade entre execucoes.
 
+Protecao: se a deteccao automatica der um trimestre mais antigo do que o do
+public/data.json ja publicado (tipicamente porque o INE nao respondeu e a cache
+acaba antes), a execucao falha sem escrever nada. --quarter ignora a protecao.
+
 Convencoes INE confirmadas:
   Algarve NUTS II  Dim2=15        aeroporto Faro  Dim2=LPFR
   anual S7A{ano}   trimestral S5A{ano}{trim}   mensal S3A{ano}{mes:02d}
@@ -840,6 +844,33 @@ def flash_validation(gva, ind, n_rev, n_cost, last_q):
 
 
 # ----------------------------------------------------------------------------
+# Protecao da publicacao
+# ----------------------------------------------------------------------------
+def _published_quarter(path=None):
+    """Trimestre do nowcast que esta publicado, ou None se nao ha ficheiro legivel."""
+    try:
+        with open(path or OUT_JSON) as f:
+            return json.load(f).get("nowcast_quarter")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _guard_publication(now_q, path=None):
+    """Recusa substituir o data.json publicado por um trimestre mais antigo.
+    Quando o INE nao responde, os pedidos que faltam ficam pela cache, que acaba
+    antes do trimestre publicado, e a deteccao automatica recua. Escrever isso
+    deixava o site pior sem ninguem dar por isso; falhar torna a execucao vermelha.
+    Trimestres iguais ou mais recentes passam (ex.: antecipado -> completo)."""
+    pub = _published_quarter(path)
+    if pub and now_q < pub:
+        motivo = ("o INE nao respondeu a tempo (ver resumo dos pedidos abaixo)"
+                  if _S["gave_up"] else "faltam dados do INE")
+        sys.exit(f"ERRO: a deteccao automatica deu {now_q}, mas o data.json publicado e {pub}. "
+                 f"Nao se escreve um trimestre mais antigo ({motivo}). "
+                 f"Nada foi escrito. Para forcar de proposito: --quarter {now_q}")
+
+
+# ----------------------------------------------------------------------------
 # Pipeline
 # ----------------------------------------------------------------------------
 def run(fetch=True, now_q=None, probe=True, flash=True):
@@ -874,6 +905,8 @@ def run(fetch=True, now_q=None, probe=True, flash=True):
         print(f"Trimestre a estimar: {now_q} ({'detetado' if auto else 'forcado'})")
     for name, src in carried.items():
         print(f"  AVISO: {name} sem {now_q}, herdado de {src}")
+    if auto:
+        _guard_publication(now_q)
 
     print("Fase 3 e 4  pontes, nowcast, backtest")
     bias, mae, n, bt_detail, bt_rmse = backtest(gva, ind)
