@@ -104,20 +104,66 @@ def _err_name(e):
     return f"{type(e).__name__}: {str(e)[:60]}"
 
 
-def _fetch(url, timeout=8, tries=1):
-    for _ in range(tries):
-        t0 = time.time()
-        try:
-            req = urllib.request.Request(url, headers=_HEADERS)
-            out = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+# Ritmo dos pedidos ao INE. Medido no GitHub (2026-10-07): 6 pedidos sequenciais
+# com pausa de 0.5s passaram todos; 16 em paralelo deram 15 x HTTP 429 e, a
+# seguir, o INE deixou de responder (timeouts) durante varios minutos.
+PACE = 0.5                    # s minimos entre o inicio de dois pedidos
+COOLDOWNS = (30, 60, 120)     # s de espera apos a 1a, 2a, 3a+ falha seguida
+WAIT_BUDGET = 300             # s de espera total por execucao; esgotado, usa-se a cache
+_NET = threading.RLock()      # um pedido de cada vez, mesmo se houver threads
+_S = {"last": 0.0, "streak": 0, "waited": 0.0, "since": 0.0, "gave_up": False}
+
+
+def _fetch(url, timeout=8, tries=3):
+    """Um pedido ao INE, com pausa entre pedidos e espera apos falhas.
+
+    Falha transitoria (429, 5xx, timeout, ligacao cortada, resposta que nao e
+    JSON): espera 30s, depois 60s, depois 120s, e repete ate `tries` vezes. Uma
+    falha clara do pedido (400, 404) devolve None sem esperar. Se a espera total
+    passar WAIT_BUDGET, desiste de todos os pedidos seguintes (fica a cache).
+    """
+    with _NET:
+        for attempt in range(tries):
+            if _S["gave_up"]:
+                return None
+            gap = PACE - (time.time() - _S["last"])
+            if gap > 0:
+                time.sleep(gap)
+            _S["last"] = t0 = time.time()
+            try:
+                req = urllib.request.Request(url, headers=_HEADERS)
+                out = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+            except Exception as e:
+                with _LOCK:
+                    _ERR[_err_name(e)] += 1
+                    _ERR_T.append(time.time() - t0)
+                if (isinstance(e, urllib.error.HTTPError)
+                        and e.code != 429 and e.code < 500):
+                    return None                  # pedido recusado, esperar nao ajuda
+                if not _S["streak"]:
+                    _S["since"] = t0
+                wait = COOLDOWNS[min(_S["streak"], len(COOLDOWNS) - 1)]
+                ra = e.headers.get("Retry-After") if isinstance(e, urllib.error.HTTPError) else None
+                if ra and str(ra).isdigit():
+                    wait = max(wait, min(int(ra), 120))
+                _S["streak"] += 1
+                if attempt == tries - 1:
+                    return None
+                if _S["waited"] + wait > WAIT_BUDGET:
+                    _S["gave_up"] = True
+                    print(f"  AVISO INE: {_S['waited']:.0f}s de espera sem resposta; "
+                          f"os pedidos que faltam ficam pela cache")
+                    return None
+                _S["waited"] += wait
+                time.sleep(wait)
+                continue
             with _LOCK:
                 _OK_T.append(time.time() - t0)
+            if _S["streak"]:
+                print(f"  INE voltou a responder apos {time.time() - _S['since']:.0f}s "
+                      f"({_S['streak']} falhas seguidas)")
+                _S["streak"] = 0
             return out
-        except Exception as e:
-            with _LOCK:
-                _ERR[_err_name(e)] += 1
-                _ERR_T.append(time.time() - t0)
-            time.sleep(0.3)
     return None
 
 
@@ -135,6 +181,9 @@ def ine_report():
         print(f"  falhas: duracao media {np.mean(_ERR_T):.1f}s, max {max(_ERR_T):.1f}s")
         for k, v in _ERR.most_common():
             print(f"    {v:4d} x {k}")
+    if _S["waited"]:
+        print(f"  esperas apos falhas: {_S['waited']:.0f}s no total"
+              + ("; desistiu do INE (orcamento esgotado)" if _S["gave_up"] else ""))
 
 
 def _probe_one(p):
@@ -164,32 +213,16 @@ def _probe_summary(label, res):
 
 
 def ine_probe():
-    """Sonda curta ao INE antes de puxar dados: ~30 pedidos a meses ja publicados.
-
-    Tres testes seguidos, para separar as causas possiveis das falhas:
-      A  6 pedidos sequenciais com pausa de 0.5s
-      B  16 pedidos em paralelo (o que o pipeline faz)
-      C  6 pedidos sequenciais com pausa de 0.5s, logo a seguir a B
-    A falha e B ok -> INE inacessivel desta maquina. A ok e B falha -> limite de
-    pedidos em paralelo. C falha depois de B -> o INE bloqueia durante um tempo.
-    Tudo ok -> o INE esta bem e o problema esta noutro lado.
+    """Sonda curta ao INE antes de puxar dados: 6 pedidos sequenciais, pausa de
+    0.5s, a meses ja publicados. Mostra se o INE responde a esta maquina e a que
+    velocidade. A sonda com 16 pedidos em paralelo (fase B) ja cumpriu o papel:
+    o INE responde 429 e deixa de responder, por isso nao se repete.
     """
-    import concurrent.futures
     print(f"Sonda INE ({time.strftime('%H:%M:%S', time.gmtime())} UTC)")
-    seq_a = [f"S3A2025{m:02d}" for m in range(1, 7)]
-    seq_c = [f"S3A2025{m:02d}" for m in range(7, 13)]
-    par = [f"S3A2024{m:02d}" for m in range(1, 13)] + [f"S3A2023{m:02d}" for m in range(1, 5)]
     res = []
-    for p in seq_a:
-        res.append(_probe_one(p)); time.sleep(0.5)
-    _probe_summary("A sequencial (pausa 0.5s)", res)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
-        res = list(ex.map(_probe_one, par))
-    _probe_summary("B 16 em paralelo", res)
-    res = []
-    for p in seq_c:
-        res.append(_probe_one(p)); time.sleep(0.5)
-    _probe_summary("C sequencial apos B", res)
+    for p in [f"S3A2025{m:02d}" for m in range(1, 7)]:
+        res.append(_probe_one(p)); time.sleep(PACE)
+    _probe_summary(f"sequencial (pausa {PACE}s)", res)
 
 
 def _parse(d, want_dim3=None):
@@ -208,14 +241,13 @@ def _parse(d, want_dim3=None):
 
 
 def fetch_series(code, dim2, extra, periods, label=""):
-    """Puxa uma serie INE para uma lista de periodos, em paralelo.
+    """Puxa uma serie INE para uma lista de periodos, um de cada vez.
 
-    Distingue o INE responder sem valor (periodo ainda nao publicado, nao vale a
-    pena repetir) de o pedido falhar (timeout, ligacao cortada). So os pedidos
-    falhados sao repetidos, com menos paralelismo: um mes perdido por falha de
-    rede faria o trimestre parecer incompleto e o nowcast recuar um trimestre.
+    O INE responde 429 e deixa de responder se receber pedidos em paralelo, por
+    isso o ritmo e as esperas ficam em _fetch. Aqui distingue-se o INE responder
+    sem valor (periodo ainda nao publicado) de o pedido falhar: um mes perdido
+    por falha faria o trimestre parecer incompleto e o nowcast recuar um trimestre.
     """
-    import concurrent.futures
     def one(p):
         url = f"{BASE}?op=2&varcd={code}&Dim1={p}&Dim2={dim2}{extra}&lang=EN"
         d = _fetch(url)
@@ -227,26 +259,13 @@ def fetch_series(code, dim2, extra, periods, label=""):
                     if v.get("valor"):
                         return (p, float(v["valor"].replace(",", ".")), False)
         return (p, None, False)                          # respondeu sem valor
-    res, failed = {}, list(periods)
-    for attempt, workers in enumerate((16, 4, 2)):
-        if not failed:
-            break
-        if attempt:
-            time.sleep(2)
-        batch, retry = failed, []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            for p, val, errored in ex.map(one, batch):
-                if val is not None:
-                    res[p] = val
-                elif errored:
-                    retry.append(p)
-        failed = retry
-        # Nenhuma resposta em toda a passagem: o INE esta inacessivel ou a bloquear
-        # esta maquina. Repetir so gasta tempo (cada falha custa ate 8s).
-        if len(batch) >= 4 and len(failed) == len(batch):
-            print(f"  AVISO {label or code}: nenhuma resposta do INE a {len(batch)} "
-                  f"pedidos, sem mais repeticoes")
-            break
+    res, failed = {}, []
+    for p in periods:
+        _, val, errored = one(p)
+        if val is not None:
+            res[p] = val
+        elif errored:
+            failed.append(p)
     if failed:
         print(f"  AVISO {label or code}: {len(failed)} periodos sem resposta do INE "
               f"({failed[0]} ...)")
