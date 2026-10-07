@@ -14,7 +14,8 @@ Uso:
                                          # (deteta sozinho o ultimo trimestre completo)
   python3 refresh_v4.py --quarter 2026-Q2   # forca o trimestre a estimar
   python3 refresh_v4.py --no-fetch       # reutiliza cache em data/ se existir
-  python3 refresh_v4.py --no-probe       # salta a sonda inicial ao INE (~30 pedidos)
+  python3 refresh_v4.py --no-probe       # salta a sonda inicial ao INE (6 pedidos)
+  python3 refresh_v4.py --no-flash       # sem estimativa antecipada do trimestre seguinte
 
 Pensado para correr semanalmente via GitHub Actions. Os dados intermedios
 ficam em data/ para servir de continuidade entre execucoes.
@@ -25,7 +26,7 @@ Convencoes INE confirmadas:
   base 2021 / NUTS 2024, serie consistente desde 1995 (sem splicing manual)
 """
 
-import json, csv, time, urllib.request, urllib.error, argparse, os, sys, threading, atexit
+import json, csv, time, urllib.request, urllib.error, argparse, os, sys, threading, atexit, copy
 from collections import defaultdict, Counter
 import numpy as np
 import warnings; warnings.filterwarnings("ignore")
@@ -542,6 +543,9 @@ def load_indicators(fetch=True, now_year=2026):
         "cost_q":    monthly_to_quarterly(raw["cost_m"], "mean"),
         "revenue":   monthly_to_quarterly(raw["revenue_m"], "sum"),
         "unemp":     raw["unemp"], "wages": raw["wages"], "htx": raw["htx"],
+        # meses soltos: so o trimestre completo entra nas series acima, e o flash
+        # precisa dos meses do trimestre ainda incompleto
+        "revenue_m": raw["revenue_m"], "cost_m": raw["cost_m"],
     }
     allq = [f"{y}-Q{q}" for y in range(2004, now_year + 1) for q in range(1, 5)]
     ind["trend"] = {q: i for i, q in enumerate(allq)}
@@ -702,9 +706,143 @@ def carry_forward(ind, now_q):
 
 
 # ----------------------------------------------------------------------------
+# Estimativa antecipada (flash) do trimestre seguinte ao ultimo completo
+# ----------------------------------------------------------------------------
+# O INE publica a receita turistica ~30 dias depois do fim do mes e o indice de
+# custos ~39. Com 2 meses de receita e 1 de custos, ja se estima o trimestre:
+#   receita  total = meses observados / quota media desses meses no trimestre
+#            (mesmo trimestre de anos de referencia, sem os anos COVID)
+#   custos   o ultimo mes observado prolongado pela variacao mensal media recente
+#   lentos   desemprego, salarios e transacoes herdados do trimestre homologo
+# O erro de usar este atalho mede-se em trimestres passados (flash_validation).
+FLASH_MIN_REV_MONTHS = 2
+FLASH_MIN_COST_MONTHS = 1
+FLASH_REF_FROM = 2017               # a receita mensal comeca em 2017
+FLASH_EXCLUDE_YEARS = {2020, 2021}  # quotas mensais distorcidas pelo COVID
+FLASH_COST_WINDOW = 6               # variacoes mensais usadas para prolongar os custos
+FLASH_MIN_REFS = 3                  # anos de referencia minimos para a quota
+FLASH_VALID_FROM = 2022             # primeiro ano da validacao do atalho
+FLASH_SLOW = ("unemp", "wages", "htx")
+
+
+def _next_q(q):
+    y, qn = int(q[:4]), int(q[-1])
+    return f"{y + (qn == 4)}-Q{qn % 4 + 1}"
+
+
+def _q_months(q):
+    y, qn = int(q[:4]), int(q[-1])
+    return [f"{y}-{m:02d}" for m in range(3 * (qn - 1) + 1, 3 * qn + 1)]
+
+
+def _leading(ks, monthly):
+    """Quantos meses do trimestre existem, contados desde o primeiro."""
+    n = 0
+    for k in ks:
+        if k not in monthly:
+            break
+        n += 1
+    return n
+
+
+def _revenue_total_est(rev_m, q, n_rev):
+    """Receita do trimestre q estimada a partir dos primeiros n_rev meses."""
+    ks = _q_months(q)
+    obs = sum(rev_m[k] for k in ks[:n_rev])
+    y, qn = int(q[:4]), int(q[-1])
+    shares = []
+    for r in range(FLASH_REF_FROM, max(int(k[:4]) for k in rev_m) + 1):
+        if r == y or r in FLASH_EXCLUDE_YEARS:
+            continue
+        kr = _q_months(f"{r}-Q{qn}")
+        if not all(k in rev_m for k in kr):
+            continue
+        tot = sum(rev_m[k] for k in kr)
+        if tot > 0:
+            shares.append(sum(rev_m[k] for k in kr[:n_rev]) / tot)
+    if len(shares) < FLASH_MIN_REFS:
+        return None
+    return obs / float(np.mean(shares))
+
+
+def _cost_q_est(cost_m, q, n_cost):
+    """Indice de custos do trimestre q: n_cost meses observados, o resto
+    prolongado pela variacao mensal media das ultimas FLASH_COST_WINDOW."""
+    ks = _q_months(q)
+    last = ks[n_cost - 1]
+    hist = sorted(k for k in cost_m if k <= last)
+    if len(hist) < FLASH_COST_WINDOW + 1:
+        return None
+    step = float(np.mean(np.diff([cost_m[k] for k in hist[-(FLASH_COST_WINDOW + 1):]])))
+    vals, v = [cost_m[k] for k in ks[:n_cost]], cost_m[last]
+    for _ in range(3 - n_cost):
+        v += step
+        vals.append(v)
+    return float(np.mean(vals))
+
+
+def flash_plan(ind, last_q):
+    """Trimestre seguinte a last_q, se ja tem meses suficientes para estimar.
+    Devolve None se nao tem, ou se esta completo (nesse caso e o detect_now_q)."""
+    fq = _next_q(last_q)
+    if fq not in ind["trend"]:           # alem do ano carregado: sem tendencia para as pontes
+        return None
+    ks = _q_months(fq)
+    n_rev, n_cost = _leading(ks, ind["revenue_m"]), _leading(ks, ind["cost_m"])
+    if n_rev < FLASH_MIN_REV_MONTHS or n_cost < FLASH_MIN_COST_MONTHS:
+        return None
+    if n_rev >= 3 and n_cost >= 3:
+        return None
+    rev = _revenue_total_est(ind["revenue_m"], fq, n_rev)
+    cost = _cost_q_est(ind["cost_m"], fq, n_cost)
+    if rev is None or cost is None:
+        return None
+    return {"quarter": fq, "months": ks, "n_rev": n_rev, "n_cost": n_cost,
+            "revenue_q": rev, "cost_q": cost,
+            "revenue_obs": sum(ind["revenue_m"][k] for k in ks[:n_rev])}
+
+
+def _total(gva, ind, q):
+    vals = [predict_sector(gva, ind, s, q) for s in SECTORS]
+    return None if any(v is None for v in vals) else float(sum(vals))
+
+
+def flash_validation(gva, ind, n_rev, n_cost, last_q):
+    """Erro (%) do atalho em trimestres passados: estimativa feita so com os
+    primeiros n_rev meses de receita e n_cost de custos (lentos herdados do ano
+    anterior) contra a feita com o trimestre completo, no mesmo modelo.
+    Mede o custo de faltarem dados, nao a exatidao face ao valor real.
+    As quotas de referencia incluem anos posteriores ao trimestre testado."""
+    errs = []
+    for y in range(FLASH_VALID_FROM, int(last_q[:4]) + 1):
+        for qn in range(1, 5):
+            q, py = f"{y}-Q{qn}", f"{y-1}-Q{qn}"
+            if q > last_q or q in COVID:
+                continue
+            ks = _q_months(q)
+            if not (q in ind["revenue"] and q in ind["cost_q"]
+                    and all(k in ind["revenue_m"] and k in ind["cost_m"] for k in ks)
+                    and all(q in ind[n] and py in ind[n] for n in FLASH_SLOW)):
+                continue
+            rev = _revenue_total_est(ind["revenue_m"], q, n_rev)
+            cost = _cost_q_est(ind["cost_m"], q, n_cost)
+            full = _total(gva, ind, q)
+            if rev is None or cost is None or full is None:
+                continue
+            i2 = copy.deepcopy(ind)
+            i2["revenue"][q], i2["cost_q"][q] = rev, cost
+            for n in FLASH_SLOW:
+                i2[n][q] = i2[n][py]
+            fl = _total(gva, i2, q)
+            if fl is not None:
+                errs.append((fl / full - 1) * 100)
+    return errs
+
+
+# ----------------------------------------------------------------------------
 # Pipeline
 # ----------------------------------------------------------------------------
-def run(fetch=True, now_q=None, probe=True):
+def run(fetch=True, now_q=None, probe=True, flash=True):
     # now_q=None: o trimestre a estimar e detetado a partir dos dados.
     # Ano a puxar do INE: o corrente, ou o do trimestre pedido se for posterior.
     fetch_year = max(time.localtime().tm_year, int(now_q[:4]) if now_q else 0)
@@ -717,11 +855,23 @@ def run(fetch=True, now_q=None, probe=True):
     auto = now_q is None
     if auto:
         now_q = detect_now_q(ind)
-    now_year = int(now_q[:4])
-    # ultimo trimestre realmente observado, antes de qualquer heranca
+    # ultimo trimestre realmente observado, antes de qualquer heranca ou estimativa
     data_through = {name: max(ind[key]) for name, key in INPUT_KEYS}
+    last_q = now_q                     # ultimo trimestre completo
+    # Estimativa antecipada do trimestre seguinte, se ja ha meses suficientes
+    plan = flash_plan(ind, last_q) if (auto and flash) else None
+    if plan:
+        now_q = plan["quarter"]
+        ind["revenue"][now_q], ind["cost_q"][now_q] = plan["revenue_q"], plan["cost_q"]
+    now_year = int(now_q[:4])
     carried = carry_forward(ind, now_q)
-    print(f"Trimestre a estimar: {now_q} ({'detetado' if auto else 'forcado'})")
+    if plan:
+        print(f"Trimestre a estimar: {now_q} (ANTECIPADO; ultimo completo: {last_q})")
+        print(f"  receita: {plan['n_rev']}/3 meses observados, trimestre estimado em "
+              f"{plan['revenue_q']:,.0f}; custos: {plan['n_cost']}/3 meses, "
+              f"indice estimado {plan['cost_q']:.1f}")
+    else:
+        print(f"Trimestre a estimar: {now_q} ({'detetado' if auto else 'forcado'})")
     for name, src in carried.items():
         print(f"  AVISO: {name} sem {now_q}, herdado de {src}")
 
@@ -748,6 +898,56 @@ def run(fetch=True, now_q=None, probe=True):
     tp = sum(prev[s] for s in SECTORS)
     rmse_agg = float(np.sqrt(sum(diag[s]["rmse"] ** 2 for s in SECTORS)))
 
+    # Intervalo a 90%: erro do modelo; no flash, soma-se (em quadratura) o erro de
+    # estimar com dados em falta, medido em trimestres passados.
+    half_90, flash_info = 1.645 * rmse_agg, None
+    if plan:
+        errs = np.array(flash_validation(gva, ind, plan["n_rev"], plan["n_cost"], last_q))
+        enough = len(errs) >= 8
+        rms = float(np.sqrt(np.mean(errs ** 2))) if enough else 3.0   # sem amostra, assume 3%
+        flash_half = 1.645 * rms / 100 * tot * corr
+        half_90 = float(np.sqrt((1.645 * rmse_agg) ** 2 + flash_half ** 2))
+        # ultimo trimestre completo, para mostrar ao lado do antecipado
+        lpy = f"{int(last_q[:4]) - 1}-Q{last_q[-1]}"
+        tot_l, tp_l = _total(gva, ind, last_q), _total(gva, ind, lpy)
+        last_complete = None
+        if tot_l and tp_l:
+            cl = corr_of(last_q)
+            last_complete = {
+                "quarter": last_q,
+                "gva_meur": round(tot_l, 1), "gva_corrected_meur": round(tot_l * cl, 1),
+                "gdp_meur": round(tot_l * GDP_FACTOR, 1),
+                "gdp_corrected_meur": round(tot_l * cl * GDP_FACTOR, 1),
+                "yoy_pct": round((tot_l / tp_l - 1) * 100, 1),
+                "lower_90": round(tot_l * cl - 1.645 * rmse_agg, 1),
+                "upper_90": round(tot_l * cl + 1.645 * rmse_agg, 1),
+                "bias_correction_pct": round(bias_q[last_q[-1]], 1),
+            }
+        py_rev = ind["revenue"].get(py_q)
+        flash_info = {
+            "quarter": now_q, "last_complete_quarter": last_q,
+            "months_observed": {"revenue": plan["months"][:plan["n_rev"]],
+                                "cost": plan["months"][:plan["n_cost"]]},
+            "estimated": {
+                "revenue_quarter": round(plan["revenue_q"]),
+                "revenue_months_missing": round(plan["revenue_q"] - plan["revenue_obs"]),
+                "revenue_yoy_pct": round((plan["revenue_q"] / py_rev - 1) * 100, 1) if py_rev else None,
+                "cost_quarter": round(plan["cost_q"], 1)},
+            "validation": {
+                "n": int(len(errs)), "rms_pct": round(rms, 1),
+                "mae_pct": round(float(np.mean(np.abs(errs))), 1) if len(errs) else None,
+                "bias_pct": round(float(np.mean(errs)), 1) if len(errs) else None,
+                "worst_pct": round(float(errs[np.argmax(np.abs(errs))]), 1) if len(errs) else None,
+                "assumed_rms": not enough,
+                "note": "estimativa so com os meses disponiveis contra a do trimestre completo, "
+                        "mesmo modelo, trimestres passados; mede o custo dos dados em falta, "
+                        "nao a exatidao face ao valor real"},
+            "interval": {"model_half_meur": round(1.645 * rmse_agg, 1),
+                         "flash_half_meur": round(flash_half, 1),
+                         "total_half_meur": round(half_90, 1)},
+            "last_complete": last_complete,
+        }
+
     # Serie agregada para o grafico: observado (soma de setores) + previsao 2025-2026
     gva_quarterly = {}
     for q in sorted(gva["304"]):
@@ -762,9 +962,13 @@ def run(fetch=True, now_q=None, probe=True):
             gva_quarterly[q] = {"type": "forecast",
                                 "value": round(sum(vals) * corr_of(q), 1)}
 
+    if plan and now_q in gva_quarterly:
+        gva_quarterly[now_q]["type"] = "flash"
+
     data = {
         "updated": time.strftime("%Y-%m-%d"),
         "nowcast_quarter": now_q,
+        "nowcast_status": "flash" if plan else "complete",
         "nowcast_quarter_source": "auto" if auto else "manual",
         "data_through": data_through,
         "inputs_carried_forward": carried,
@@ -775,8 +979,8 @@ def run(fetch=True, now_q=None, probe=True):
             "gdp_corrected_meur": round(tot * corr * GDP_FACTOR, 1),
             "yoy_pct": round((tot / tp - 1) * 100, 1),
             "rmse_meur": round(rmse_agg, 1),
-            "lower_90": round(tot * corr - 1.645 * rmse_agg, 1),
-            "upper_90": round(tot * corr + 1.645 * rmse_agg, 1),
+            "lower_90": round(tot * corr - half_90, 1),
+            "upper_90": round(tot * corr + half_90, 1),
             "bias_correction_pct": round(bias_q[now_q[-1]], 1),   # o aplicado neste trimestre
             "bias_correction_pooled_pct": round(bias, 1),         # o antigo fator unico
         },
@@ -798,21 +1002,28 @@ def run(fetch=True, now_q=None, probe=True):
             "method": "Janela expansivel out-of-sample 2019-2024, exclui COVID",
             "detail": bt_detail,
         },
+        **({"flash": flash_info} if plan else {}),
         "gva_quarterly": gva_quarterly,
         "sector_quarterly_gva": {
             s: {q: round(gva[s][q], 1) for q in sorted(gva[s])} for s in SECTORS},
         "indicators": {
             name: {q: round(ind[key][q], 1) for q in sorted(ind[key])
-                   if "2017-Q1" <= q <= now_q}
+                   if "2017-Q1" <= q <= min(now_q, data_through[name])}
             for name, key in INPUT_KEYS},
     }
 
     os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
     json.dump(data, open(OUT_JSON, "w"), ensure_ascii=False, indent=1)
 
-    print(f"\nNowcast {now_q}: VAB {tot:.0f}M (corr {tot*corr:.0f}M), "
+    print(f"\nNowcast {now_q}{' (antecipado)' if plan else ''}: VAB {tot:.0f}M (corr {tot*corr:.0f}M), "
           f"PIB {tot*GDP_FACTOR:.0f}M (corr {tot*corr*GDP_FACTOR:.0f}M), "
           f"homologa {(tot/tp-1)*100:+.1f}%")
+    if plan:
+        v = flash_info["validation"]
+        print(f"  IC 90%: [{tot*corr-half_90:.0f}M ; {tot*corr+half_90:.0f}M]  "
+              f"(modelo ±{1.645*rmse_agg:.0f}M, dados em falta ±{flash_half:.0f}M)")
+        print(f"  atalho validado em {v['n']} trimestres: vies {v['bias_pct']:+.1f}%, "
+              f"MAE {v['mae_pct']:.1f}%, pior {v['worst_pct']:+.1f}%")
     print(f"Backtest: vies global {bias:+.1f}%, MAE {mae:.1f}% (n={n})")
     print("  vies por trimestre (encolhido): " +
           ", ".join(f"T{qn} {bias_q[qn]:+.1f}% (n={n_q[qn]})" for qn in "1234"))
@@ -828,8 +1039,11 @@ if __name__ == "__main__":
                     help="reutiliza cache em data/ em vez de puxar do INE")
     ap.add_argument("--quarter", default=None,
                     help="trimestre a estimar, ex. 2026-Q2 (por omissao, deteta o ultimo completo)")
+    ap.add_argument("--no-flash", action="store_true",
+                    help="nao faz a estimativa antecipada do trimestre seguinte ao ultimo completo")
     ap.add_argument("--no-probe", action="store_true",
                     help="nao faz a sonda inicial ao INE (~30 pedidos de teste)")
     args = ap.parse_args()
     atexit.register(ine_report)      # resumo dos pedidos ao INE, mesmo se a execucao falhar
-    run(fetch=not args.no_fetch, now_q=args.quarter, probe=not args.no_probe)
+    run(fetch=not args.no_fetch, now_q=args.quarter, probe=not args.no_probe,
+        flash=not args.no_flash)
