@@ -11,6 +11,8 @@ Faz tudo de ponta a ponta:
 
 Uso:
   python3 refresh_v4.py                  # corre tudo, escreve public/data.json
+                                         # (deteta sozinho o ultimo trimestre completo)
+  python3 refresh_v4.py --quarter 2026-Q2   # forca o trimestre a estimar
   python3 refresh_v4.py --no-fetch       # reutiliza cache em data/ se existir
 
 Pensado para correr semanalmente via GitHub Actions. Os dados intermedios
@@ -59,6 +61,17 @@ BRIDGE_SPECS = {
 }
 GDP_FACTOR = 1.08   # PIB = VAB x (1 + impostos liquidos sobre produtos)
 
+# Indicadores publicados no data.json: (nome no site, chave interna)
+INPUT_KEYS = [("revenue", "revenue"), ("airport", "airport_q"),
+              ("unemp", "unemp"), ("wages", "wages"),
+              ("htx", "htx"), ("cost", "cost_q")]
+
+# Indicadores mensais que ancoram as pontes. Um trimestre so existe nestas series
+# quando tem os 3 meses, por isso sao eles que decidem o trimestre a estimar.
+# Os trimestrais lentos (desemprego, salarios, transacoes) podem ser herdados
+# do trimestre homologo (ver carry_forward) e ficam assinalados no data.json.
+FAST_INPUTS = ["revenue", "cost_q"]
+
 
 # ----------------------------------------------------------------------------
 # Fetch INE (paralelo, com retries)
@@ -97,30 +110,42 @@ def _parse(d, want_dim3=None):
 
 
 def fetch_series(code, dim2, extra, periods, label=""):
-    """Puxa uma serie INE para uma lista de periodos, em paralelo."""
+    """Puxa uma serie INE para uma lista de periodos, em paralelo.
+
+    Distingue o INE responder sem valor (periodo ainda nao publicado, nao vale a
+    pena repetir) de o pedido falhar (timeout, ligacao cortada). So os pedidos
+    falhados sao repetidos, com menos paralelismo: um mes perdido por falha de
+    rede faria o trimestre parecer incompleto e o nowcast recuar um trimestre.
+    """
     import concurrent.futures
     def one(p):
         url = f"{BASE}?op=2&varcd={code}&Dim1={p}&Dim2={dim2}{extra}&lang=EN"
         d = _fetch(url)
-        if d and isinstance(d, list) and "Dados" in d[0]:
+        if d is None:
+            return (p, None, True)                       # pedido falhou
+        if isinstance(d, list) and d and "Dados" in d[0]:
             for _, vals in d[0]["Dados"].items():
                 for v in vals:
                     if v.get("valor"):
-                        return (p, float(v["valor"].replace(",", ".")))
-        return None
-    res = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
-        for r in ex.map(one, periods):
-            if r:
-                res[r[0]] = r[1]
-    # Um unico retry, e so se a maioria falhou (sinal de problema transitorio
-    # de rede, nao de periodos que simplesmente ainda nao existem no INE).
-    missing = [p for p in periods if p not in res]
-    if missing and len(missing) > len(periods) * 0.6:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-            for r in ex.map(one, missing):
-                if r:
-                    res[r[0]] = r[1]
+                        return (p, float(v["valor"].replace(",", ".")), False)
+        return (p, None, False)                          # respondeu sem valor
+    res, failed = {}, list(periods)
+    for attempt, workers in enumerate((16, 4, 2)):
+        if not failed:
+            break
+        if attempt:
+            time.sleep(2)
+        retry = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            for p, val, errored in ex.map(one, failed):
+                if val is not None:
+                    res[p] = val
+                elif errored:
+                    retry.append(p)
+        failed = retry
+    if failed:
+        print(f"  AVISO {label or code}: {len(failed)} periodos sem resposta do INE "
+              f"apos 3 tentativas ({failed[0]} ...)")
     if label:
         print(f"  {label}: {len(res)}/{len(periods)} periodos")
     return res
@@ -502,29 +527,87 @@ def backtest(gva, ind, y0=2019, y1=2024):
     return bias, mae, len(errs), detail, rmse_meur
 
 
+SHRINK_K = 2.0   # peso (em n. de observacoes) do vies global sobre o de cada trimestre
+
+def seasonal_bias(detail, k=SHRINK_K):
+    """Vies medio (%) por trimestre do ano, encolhido para o vies global:
+        b_q = (soma dos erros do trimestre q + k * vies global) / (n_q + k)
+    Com 3 a 4 observacoes por trimestre, o encolhimento evita ajustar ao ruido;
+    sem observacoes, b_q cai para o vies global."""
+    errs = [d["error_pct"] for d in detail]
+    pooled = float(np.mean(errs)) if errs else 0.0
+    by_q, n_by_q = {}, {}
+    for qn in "1234":
+        e = [d["error_pct"] for d in detail if d["quarter"][-1] == qn]
+        n_by_q[qn] = len(e)
+        by_q[qn] = (sum(e) + k * pooled) / (len(e) + k)
+    return by_q, n_by_q, pooled
+
+
+def loo_mae(detail, k=SHRINK_K):
+    """MAE (%) deixando cada trimestre de fora: e corrigido com o vies estimado
+    SEM ele. Devolve (MAE com vies global, MAE com vies sazonal)."""
+    pooled_err, seas_err = [], []
+    for i, d in enumerate(detail):
+        by_q, _, pooled = seasonal_bias(detail[:i] + detail[i + 1:], k)
+        for bias, out in ((pooled, pooled_err), (by_q[d["quarter"][-1]], seas_err)):
+            out.append(abs(d["predicted"] / (1 + bias / 100) / d["actual"] - 1) * 100)
+    return float(np.mean(pooled_err)), float(np.mean(seas_err))
+
+
+def detect_now_q(ind):
+    """Ultimo trimestre completo nos indicadores mensais que ancoram as pontes."""
+    common = set.intersection(*(set(ind[k]) for k in FAST_INPUTS))
+    if not common:
+        raise RuntimeError("sem nenhum trimestre completo nos indicadores mensais")
+    return max(common)
+
+
 def carry_forward(ind, now_q):
-    """Para indicadores trimestrais sem o trimestre corrente, herda o homologo."""
+    """Para indicadores trimestrais sem o trimestre corrente, herda o homologo.
+    Devolve {indicador: trimestre de onde o valor foi herdado}."""
+    carried = {}
     for name in ["unemp", "wages", "htx", "revenue"]:
         d = ind[name]
         if now_q not in d:
             y, qn = now_q.split("-Q")
             py = f"{int(y)-1}-Q{qn}"
-            d[now_q] = d.get(py, d[sorted(d)[-1]])
+            src = py if py in d else sorted(d)[-1]
+            d[now_q] = d[src]
+            carried[name] = src
+    return carried
 
 
 # ----------------------------------------------------------------------------
 # Pipeline
 # ----------------------------------------------------------------------------
-def run(fetch=True, now_q="2026-Q1"):
-    now_year = int(now_q[:4])
-    annual = phase1_annual(fetch, now_year)
-    ind = load_indicators(fetch, now_year)
+def run(fetch=True, now_q=None):
+    # now_q=None: o trimestre a estimar e detetado a partir dos dados.
+    # Ano a puxar do INE: o corrente, ou o do trimestre pedido se for posterior.
+    fetch_year = max(time.localtime().tm_year, int(now_q[:4]) if now_q else 0)
+    annual = phase1_annual(fetch, fetch_year)
+    ind = load_indicators(fetch, fetch_year)
     gva = phase2_disaggregate(annual, ind, fetch)
-    carry_forward(ind, now_q)
+
+    auto = now_q is None
+    if auto:
+        now_q = detect_now_q(ind)
+    now_year = int(now_q[:4])
+    # ultimo trimestre realmente observado, antes de qualquer heranca
+    data_through = {name: max(ind[key]) for name, key in INPUT_KEYS}
+    carried = carry_forward(ind, now_q)
+    print(f"Trimestre a estimar: {now_q} ({'detetado' if auto else 'forcado'})")
+    for name, src in carried.items():
+        print(f"  AVISO: {name} sem {now_q}, herdado de {src}")
 
     print("Fase 3 e 4  pontes, nowcast, backtest")
     bias, mae, n, bt_detail, bt_rmse = backtest(gva, ind)
-    corr = 1 / (1 + bias / 100)        # fator de correcao de vies
+    # Correcao de vies por trimestre do ano (nao um fator unico): o backtest mostra
+    # erros muito diferentes por trimestre (T2 e T4 muito abaixo, T1 perto de zero).
+    bias_q, n_q, _ = seasonal_bias(bt_detail)
+    mae_loo_pooled, mae_loo_seasonal = loo_mae(bt_detail)
+    corr_of = lambda q: 1 / (1 + bias_q[q[-1]] / 100)
+    corr = corr_of(now_q)              # fator de correcao do trimestre a estimar
     py_q = f"{now_year-1}-Q{now_q[-1]}"
 
     now, prev, diag = {}, {}, {}
@@ -552,11 +635,14 @@ def run(fetch=True, now_q="2026-Q1"):
         vals = [predict_sector(gva, ind, s, q) for s in SECTORS]
         if all(v is not None for v in vals):
             gva_quarterly[q] = {"type": "forecast",
-                                "value": round(sum(vals) * corr, 1)}
+                                "value": round(sum(vals) * corr_of(q), 1)}
 
     data = {
         "updated": time.strftime("%Y-%m-%d"),
         "nowcast_quarter": now_q,
+        "nowcast_quarter_source": "auto" if auto else "manual",
+        "data_through": data_through,
+        "inputs_carried_forward": carried,
         "version": "Algarve Nowcast v4 Setorial",
         "aggregate": {
             "gva_meur": round(tot, 1), "gva_corrected_meur": round(tot * corr, 1),
@@ -566,7 +652,8 @@ def run(fetch=True, now_q="2026-Q1"):
             "rmse_meur": round(rmse_agg, 1),
             "lower_90": round(tot * corr - 1.645 * rmse_agg, 1),
             "upper_90": round(tot * corr + 1.645 * rmse_agg, 1),
-            "bias_correction_pct": round(bias, 1),
+            "bias_correction_pct": round(bias_q[now_q[-1]], 1),   # o aplicado neste trimestre
+            "bias_correction_pooled_pct": round(bias, 1),         # o antigo fator unico
         },
         "sectors": {s: {
             "point": round(now[s], 1), "point_corrected": round(now[s] * corr, 1),
@@ -578,6 +665,10 @@ def run(fetch=True, now_q="2026-Q1"):
         "diagnostics": {s: {**diag[s], "dw": None} for s in SECTORS},
         "validation": {
             "mae_pct": round(mae, 1), "bias_pct": round(bias, 1),
+            "bias_by_quarter": {qn: round(v, 1) for qn, v in bias_q.items()},
+            "n_by_quarter": n_q, "shrinkage_k": SHRINK_K,
+            "mae_loo_pct_pooled": round(mae_loo_pooled, 1),
+            "mae_loo_pct_seasonal": round(mae_loo_seasonal, 1),
             "rmse_meur": round(bt_rmse, 1), "n_quarters": n,
             "method": "Janela expansivel out-of-sample 2019-2024, exclui COVID",
             "detail": bt_detail,
@@ -588,9 +679,7 @@ def run(fetch=True, now_q="2026-Q1"):
         "indicators": {
             name: {q: round(ind[key][q], 1) for q in sorted(ind[key])
                    if "2017-Q1" <= q <= now_q}
-            for name, key in [("revenue", "revenue"), ("airport", "airport_q"),
-                              ("unemp", "unemp"), ("wages", "wages"),
-                              ("htx", "htx"), ("cost", "cost_q")]},
+            for name, key in INPUT_KEYS},
     }
 
     os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
@@ -599,7 +688,11 @@ def run(fetch=True, now_q="2026-Q1"):
     print(f"\nNowcast {now_q}: VAB {tot:.0f}M (corr {tot*corr:.0f}M), "
           f"PIB {tot*GDP_FACTOR:.0f}M (corr {tot*corr*GDP_FACTOR:.0f}M), "
           f"homologa {(tot/tp-1)*100:+.1f}%")
-    print(f"Backtest: vies {bias:+.1f}%, MAE {mae:.1f}% (n={n})")
+    print(f"Backtest: vies global {bias:+.1f}%, MAE {mae:.1f}% (n={n})")
+    print("  vies por trimestre (encolhido): " +
+          ", ".join(f"T{qn} {bias_q[qn]:+.1f}% (n={n_q[qn]})" for qn in "1234"))
+    print(f"  MAE fora da amostra: fator unico {mae_loo_pooled:.1f}% "
+          f"vs sazonal {mae_loo_seasonal:.1f}%")
     print(f"Escrito: {OUT_JSON}")
     return data
 
@@ -608,6 +701,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-fetch", action="store_true",
                     help="reutiliza cache em data/ em vez de puxar do INE")
-    ap.add_argument("--quarter", default="2026-Q1", help="trimestre a estimar")
+    ap.add_argument("--quarter", default=None,
+                    help="trimestre a estimar, ex. 2026-Q2 (por omissao, deteta o ultimo completo)")
     args = ap.parse_args()
     run(fetch=not args.no_fetch, now_q=args.quarter)
