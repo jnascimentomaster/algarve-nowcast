@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-07",
+ "updated": "2026-10-12",
  "nowcast_quarter": "2026-Q3",
  "nowcast_status": "flash",
  "nowcast_quarter_source": "auto",
@@ -18,14 +18,14 @@
  },
  "version": "Algarve Nowcast v4 Setorial",
  "aggregate": {
-  "gva_meur": 4168.1,
-  "gva_corrected_meur": 4369.8,
-  "gdp_meur": 4501.5,
-  "gdp_corrected_meur": 4719.4,
-  "yoy_pct": 4.6,
+  "gva_meur": 4166.3,
+  "gva_corrected_meur": 4367.9,
+  "gdp_meur": 4499.6,
+  "gdp_corrected_meur": 4717.3,
+  "yoy_pct": 4.5,
   "rmse_meur": 198.8,
-  "lower_90": 4018.8,
-  "upper_90": 4720.8,
+  "lower_90": 4015.7,
+  "upper_90": 4720.1,
   "bias_correction_pct": -4.6,
   "bias_correction_pooled_pct": -8.2
  },
@@ -58,11 +58,11 @@
    "name": "Imobiliario"
   },
   "203": {
-   "point": 230.3,
-   "point_corrected": 241.4,
+   "point": 228.5,
+   "point_corrected": 239.5,
    "weight_pct": 5.5,
    "prev_year": 203.1,
-   "yoy_pct": 13.4,
+   "yoy_pct": 12.5,
    "prev_year_q": "2025-Q3",
    "name": "Construcao"
   },
@@ -278,37 +278,38 @@
     "2026-08"
    ],
    "cost": [
-    "2026-07"
+    "2026-07",
+    "2026-08"
    ]
   },
   "estimated": {
    "revenue_quarter": 951842,
    "revenue_months_missing": 244268,
    "revenue_yoy_pct": 6.2,
-   "cost_quarter": 135.6
+   "cost_quarter": 135.0
   },
   "validation": {
    "n": 18,
    "rms_pct": 1.8,
-   "mae_pct": 1.4,
+   "mae_pct": 1.5,
    "bias_pct": -0.2,
-   "worst_pct": -4.3,
+   "worst_pct": -4.6,
    "assumed_rms": false,
    "note": "estimativa so com os meses disponiveis contra a do trimestre completo, mesmo modelo, trimestres passados; mede o custo dos dados em falta, nao a exatidao face ao valor real"
   },
   "interval": {
    "model_half_meur": 327.0,
-   "flash_half_meur": 127.5,
-   "total_half_meur": 351.0
+   "flash_half_meur": 130.8,
+   "total_half_meur": 352.2
   },
   "last_complete": {
    "quarter": "2026-Q2",
-   "gva_meur": 3265.1,
-   "gva_corrected_meur": 3770.3,
-   "gdp_meur": 3526.3,
+   "gva_meur": 3265.0,
+   "gva_corrected_meur": 3770.2,
+   "gdp_meur": 3526.2,
    "gdp_corrected_meur": 4071.9,
    "yoy_pct": 4.1,
-   "lower_90": 3443.3,
+   "lower_90": 3443.2,
    "upper_90": 4097.3,
    "bias_correction_pct": -13.4
   }
@@ -464,11 +465,11 @@
   },
   "2026-Q2": {
    "type": "forecast",
-   "value": 3770.3
+   "value": 3770.2
   },
   "2026-Q3": {
    "type": "flash",
-   "value": 4369.8
+   "value": 4367.9
   }
  },
  "sector_quarterly_gva": {
