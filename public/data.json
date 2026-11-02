@@ -1,10 +1,10 @@
 {
- "updated": "2026-10-19",
+ "updated": "2026-11-02",
  "nowcast_quarter": "2026-Q3",
  "nowcast_status": "flash",
  "nowcast_quarter_source": "auto",
  "data_through": {
-  "revenue": "2026-Q2",
+  "revenue": "2026-Q3",
   "airport": "2026-Q2",
   "unemp": "2026-Q2",
   "wages": "2026-Q2",
@@ -18,24 +18,24 @@
  },
  "version": "Algarve Nowcast v4 Setorial",
  "aggregate": {
-  "gva_meur": 4166.3,
-  "gva_corrected_meur": 4367.9,
-  "gdp_meur": 4499.6,
-  "gdp_corrected_meur": 4717.3,
-  "yoy_pct": 4.5,
+  "gva_meur": 4159.8,
+  "gva_corrected_meur": 4361.1,
+  "gdp_meur": 4492.6,
+  "gdp_corrected_meur": 4710.0,
+  "yoy_pct": 4.4,
   "rmse_meur": 198.8,
-  "lower_90": 4015.7,
-  "upper_90": 4720.1,
+  "lower_90": 4012.2,
+  "upper_90": 4710.1,
   "bias_correction_pct": -4.6,
   "bias_correction_pooled_pct": -8.2
  },
  "sectors": {
   "304": {
-   "point": 2109.3,
-   "point_corrected": 2211.4,
+   "point": 2103.9,
+   "point_corrected": 2205.7,
    "weight_pct": 50.6,
    "prev_year": 2009.3,
-   "yoy_pct": 5.0,
+   "yoy_pct": 4.7,
    "prev_year_q": "2025-Q3",
    "name": "Comercio e Turismo"
   },
@@ -67,18 +67,18 @@
    "name": "Construcao"
   },
   "308": {
-   "point": 408.9,
-   "point_corrected": 428.6,
+   "point": 407.8,
+   "point_corrected": 427.5,
    "weight_pct": 9.8,
    "prev_year": 389.1,
-   "yoy_pct": 5.1,
+   "yoy_pct": 4.8,
    "prev_year_q": "2025-Q3",
    "name": "Consultoria"
   },
   "REST": {
    "point": 501.8,
    "point_corrected": 526.1,
-   "weight_pct": 12.0,
+   "weight_pct": 12.1,
    "prev_year": 481.2,
    "yoy_pct": 4.3,
    "prev_year_q": "2025-Q3",
@@ -275,7 +275,8 @@
   "months_observed": {
    "revenue": [
     "2026-07",
-    "2026-08"
+    "2026-08",
+    "2026-09"
    ],
    "cost": [
     "2026-07",
@@ -283,24 +284,24 @@
    ]
   },
   "estimated": {
-   "revenue_quarter": 951842,
-   "revenue_months_missing": 244268,
-   "revenue_yoy_pct": 6.2,
+   "revenue_quarter": 948848,
+   "revenue_months_missing": 0,
+   "revenue_yoy_pct": 5.8,
    "cost_quarter": 135.0
   },
   "validation": {
    "n": 18,
-   "rms_pct": 1.8,
-   "mae_pct": 1.5,
-   "bias_pct": -0.2,
-   "worst_pct": -4.6,
+   "rms_pct": 1.7,
+   "mae_pct": 1.3,
+   "bias_pct": -0.3,
+   "worst_pct": -4.3,
    "assumed_rms": false,
    "note": "estimativa so com os meses disponiveis contra a do trimestre completo, mesmo modelo, trimestres passados; mede o custo dos dados em falta, nao a exatidao face ao valor real"
   },
   "interval": {
    "model_half_meur": 327.0,
-   "flash_half_meur": 130.8,
-   "total_half_meur": 352.2
+   "flash_half_meur": 121.7,
+   "total_half_meur": 348.9
   },
   "last_complete": {
    "quarter": "2026-Q2",
@@ -469,7 +470,7 @@
   },
   "2026-Q3": {
    "type": "flash",
-   "value": 4367.9
+   "value": 4361.1
   }
  },
  "sector_quarterly_gva": {
@@ -1029,7 +1030,8 @@
    "2025-Q3": 896425.0,
    "2025-Q4": 258249.0,
    "2026-Q1": 151340.0,
-   "2026-Q2": 546356.0
+   "2026-Q2": 546356.0,
+   "2026-Q3": 948848.0
   },
   "airport": {
    "2017-Q1": 890727.0,
