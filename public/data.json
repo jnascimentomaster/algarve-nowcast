@@ -1,11 +1,11 @@
 {
- "updated": "2026-11-09",
+ "updated": "2026-11-16",
  "nowcast_quarter": "2026-Q3",
  "nowcast_status": "complete",
  "nowcast_quarter_source": "auto",
  "data_through": {
   "revenue": "2026-Q3",
-  "airport": "2026-Q2",
+  "airport": "2026-Q3",
   "unemp": "2026-Q3",
   "wages": "2026-Q3",
   "htx": "2026-Q2",
@@ -1023,7 +1023,8 @@
    "2025-Q3": 3842114.0,
    "2025-Q4": 1912906.0,
    "2026-Q1": 1255772.0,
-   "2026-Q2": 3516804.0
+   "2026-Q2": 3516804.0,
+   "2026-Q3": 3989964.0
   },
   "unemp": {
    "2017-Q1": 10.8,
